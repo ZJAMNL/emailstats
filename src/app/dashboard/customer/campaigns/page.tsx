@@ -1,6 +1,5 @@
-import { CalendarDays, RefreshCw } from "lucide-react";
-import { syncCampaignsAction } from "@/app/actions";
 import { DashboardShell } from "@/components/dashboard-shell";
+import { CampaignDatePicker } from "@/components/campaign-date-picker";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 
@@ -36,12 +35,8 @@ export default async function CustomerCampaigns({ searchParams }: CampaignPagePr
       {databaseUnavailable ? <p className="form-error" role="status">Campagnegegevens zijn nog niet beschikbaar: PostgreSQL moet eerst worden geconfigureerd en gemigreerd.</p> : null}
 
       <section className="panel campaign-filter-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Periode</p><h2>Filter campagnes</h2></div><CalendarDays size={19} /></div>
-        <form action={syncCampaignsAction} className="date-filter customer-form">
-          <label>Van<input name="from" type="date" defaultValue={from} required /></label>
-          <label>Tot en met<input name="to" type="date" defaultValue={to} required /></label>
-          <button className="button button-primary" type="submit"><RefreshCw size={15} /> Periode synchroniseren</button>
-        </form>
+        <div className="panel-heading"><div><p className="eyebrow">Periode</p><h2>Filter campagnes</h2></div></div>
+        <CampaignDatePicker initialFrom={from} initialTo={to} />
       </section>
 
       <section className="panel table-panel">
