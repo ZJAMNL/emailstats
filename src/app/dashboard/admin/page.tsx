@@ -1,29 +1,63 @@
-import { Activity, CreditCard, Sparkles, Users } from "lucide-react";
+import { Activity, Database, Mail, Users } from "lucide-react";
+import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { MetricsGrid } from "@/components/metrics-grid";
-import { PerformanceChart } from "@/components/performance-chart";
-import { overviewMetrics, tenantOverview } from "@/lib/dashboard-data";
+import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
   await requireRole("admin");
+  let summary: Awaited<ReturnType<typeof loadSummary>> | null = null;
+  let databaseUnavailable = false;
+
+  if (process.env.DATABASE_URL) {
+    try {
+      summary = await loadSummary();
+    } catch {
+      databaseUnavailable = true;
+    }
+  } else {
+    databaseUnavailable = true;
+  }
 
   return (
-    <DashboardShell role="admin" title="Platformoverzicht" subtitle="Alles wat je als beheerder moet weten over de emailomgeving.">
-      <MetricsGrid metrics={overviewMetrics.platform} />
-      <section className="panel-grid two-columns">
-        <PerformanceChart />
-        <article className="panel stats-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Prestaties</p><h2>Actieve prioriteiten</h2></div></div>
-          <div className="priority-list"><div><Sparkles size={18} /><div><strong>Automatisering</strong><span>6 workflows klaar voor uitbreiding.</span></div></div><div><Activity size={18} /><div><strong>Deliverability</strong><span>94.8% en stijgende trend.</span></div></div><div><CreditCard size={18} /><div><strong>Revenue tracking</strong><span>€68.4K gecorreleerd met campagneacties.</span></div></div></div>
-        </article>
+    <DashboardShell role="admin" title="Platformoverzicht" subtitle="Beheer klantaccounts, Copernica-bronnen en gesynchroniseerde campagnes.">
+      {databaseUnavailable ? <p className="form-error" role="status">Platformgegevens zijn nog niet beschikbaar: configureer en migreer PostgreSQL.</p> : null}
+      <section className="metric-grid" aria-label="Platformstatistieken">
+        <article className="metric-card"><div className="metric-header"><span>Klanten</span><Users size={16} /></div><strong>{summary?.tenantCount ?? 0}</strong></article>
+        <article className="metric-card"><div className="metric-header"><span>Klantaccounts</span><Activity size={16} /></div><strong>{summary?.userCount ?? 0}</strong></article>
+        <article className="metric-card"><div className="metric-header"><span>Copernica-koppelingen</span><Database size={16} /></div><strong>{summary?.connectionCount ?? 0}</strong></article>
+        <article className="metric-card"><div className="metric-header"><span>Campagnes</span><Mail size={16} /></div><strong>{summary?.campaignCount ?? 0}</strong></article>
       </section>
       <section className="panel table-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Klanten</p><h2>Tenant-overzicht</h2></div><span className="tab">3 actieve klanten</span></div>
-        <div className="table-wrap"><table><thead><tr><th>Klant</th><th>Eigenaar</th><th>Verzonden</th><th>CTR</th><th>Health</th></tr></thead><tbody>{tenantOverview.map((tenant) => <tr key={tenant.id}><td><div className="tenant-name"><Users size={16} />{tenant.name}</div></td><td>{tenant.owner}</td><td>{tenant.delivered.toLocaleString("nl-NL")}</td><td>{tenant.ctr}%</td><td><span className="status-badge status-good">{tenant.health}</span></td></tr>)}</tbody></table></div>
+        <div className="panel-heading"><div><p className="eyebrow">Klanten</p><h2>Tenant-overzicht</h2></div><Link href="/dashboard/admin/clients" className="button button-secondary">Klanten beheren</Link></div>
+        {summary && summary.tenants.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Klant</th><th>Account</th><th>Copernica</th><th>Campagnes</th><th>Laatste sync</th></tr></thead><tbody>{summary.tenants.map((tenant) => <tr key={tenant.id}><td>{tenant.name}</td><td>{tenant.users[0]?.email ?? "Geen login"}</td><td>{tenant.copernica ? "Verbonden" : "Niet gekoppeld"}</td><td>{tenant._count.campaigns}</td><td>{tenant.copernica?.lastSyncedAt?.toLocaleString("nl-NL") ?? "-"}</td></tr>)}</tbody></table></div> : !databaseUnavailable ? <p className="empty-state">Nog geen klanten. Maak de eerste klant aan via Klanten beheren.</p> : null}
       </section>
     </DashboardShell>
   );
+}
+
+function loadSummary() {
+  const prisma = getPrismaClient();
+  return prisma.$transaction([
+    prisma.tenant.count(),
+    prisma.user.count({ where: { role: "CUSTOMER" } }),
+    prisma.copernicaConnection.count(),
+    prisma.campaign.count(),
+    prisma.tenant.findMany({
+      include: {
+        users: { where: { role: "CUSTOMER" }, take: 1 },
+        copernica: true,
+        _count: { select: { campaigns: true } },
+      },
+      orderBy: { name: "asc" },
+    }),
+  ]).then(([tenantCount, userCount, connectionCount, campaignCount, tenants]) => ({
+    tenantCount,
+    userCount,
+    connectionCount,
+    campaignCount,
+    tenants,
+  }));
 }

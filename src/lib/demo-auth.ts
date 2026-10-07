@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import { compare } from "bcryptjs";
+import { getPrismaClient } from "./prisma";
 import { createSession, type SessionRole } from "./session";
 
 const demoAccounts = {
@@ -21,6 +23,37 @@ const demoAccounts = {
 export async function signInAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+
+  if (process.env.DATABASE_URL) {
+    let user;
+    try {
+      user = await getPrismaClient().user.findUnique({
+        where: { email },
+        include: { tenant: true },
+      });
+    } catch {
+      redirect("/login?error=invalid-credentials");
+    }
+
+    if (user && await compare(password, user.passwordHash) && (user.role === "ADMIN" || user.tenant?.status === "active")) {
+      const role: SessionRole = user.role === "ADMIN" ? "admin" : "customer";
+      await createSession({
+        userId: user.id,
+        email: user.email,
+        role,
+        tenantId: user.tenantId ?? "platform",
+        name: user.name,
+      });
+      redirect(role === "admin" ? "/dashboard/admin" : "/dashboard/customer");
+    }
+
+    redirect("/login?error=invalid-credentials");
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    redirect("/login?error=invalid-credentials");
+  }
+
   const account = demoAccounts[email as keyof typeof demoAccounts];
 
   if (!account || account.password !== password) {

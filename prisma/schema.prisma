@@ -1,10 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -13,39 +13,85 @@ enum Role {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  name          String
-  role          Role     @default(CUSTOMER)
-  tenantId      String
-  passwordHash  String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         Role     @default(CUSTOMER)
+  tenantId     String?
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([tenantId])
 }
 
 model Tenant {
-  id          String   @id @default(cuid())
+  id          String               @id @default(cuid())
   name        String
-  slug        String   @unique
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  settings    Json
+  slug        String               @unique
+  logoDataUrl String?              @db.Text
+  status      String               @default("active")
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  settings    Json                 @default("{}")
+  users       User[]
+  campaigns   Campaign[]
+  copernica   CopernicaConnection?
+  selections  CopernicaSelection[]
 }
 
 model Campaign {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   tenantId    String
   name        String
   status      String
   sentCount   Int
   openCount   Int
   clickCount  Int
-  revenue     Decimal  @db.Decimal(18, 2)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  revenue     Decimal   @db.Decimal(18, 2)
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  copernicaId String
 
+  @@unique([tenantId, copernicaId])
   @@index([tenantId, createdAt])
+}
+
+model CopernicaConnection {
+  id                String    @id @default(cuid())
+  tenantId          String    @unique
+  databaseId        String
+  encryptedApiToken String
+  connectedAt       DateTime  @default(now())
+  lastSyncedAt      DateTime?
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model CopernicaSelection {
+  id          String              @id @default(cuid())
+  tenantId    String
+  copernicaId String
+  name        String
+  enabled     Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  snapshots   SelectionSnapshot[]
+
+  @@unique([tenantId, copernicaId])
+  @@index([tenantId, enabled])
+}
+
+model SelectionSnapshot {
+  id           String             @id @default(cuid())
+  selectionId  String
+  measuredAt   DateTime           @default(now())
+  profileCount Int
+  selection    CopernicaSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+
+  @@unique([selectionId, measuredAt])
+  @@index([selectionId, measuredAt])
 }

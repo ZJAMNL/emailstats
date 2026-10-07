@@ -15,7 +15,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="auth-page">
       <section className="auth-panel auth-panel-large">
-        <div className="auth-header"><span className="brand-mark">M</span><div><p className="eyebrow">MailMetrics</p><h1>Welkom terug</h1></div></div>
+          <div className="auth-header"><span className="brand-mark">E</span><div><p className="eyebrow">E-mail Statistieken</p><h1>Welkom terug</h1></div></div>
         <p className="auth-intro">Log in op je managementomgeving en controleer je e-mailstatistieken.</p>
         <form action={signInAction} className="auth-form">
           <label>Emailadres<input name="email" type="email" placeholder="naam@bedrijf.nl" autoComplete="email" required /></label>

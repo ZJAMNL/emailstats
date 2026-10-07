@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "MailMetrics | Email marketing dashboard",
-    template: "%s | MailMetrics",
+    default: "E-mail Statistieken | E-mailmarketingdashboard",
+    template: "%s | E-mail Statistieken",
   },
   description: "Secure email marketing dashboard for administrators and customer tenants.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),

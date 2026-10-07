@@ -10,6 +10,11 @@ export type Session = {
   role: SessionRole;
   tenantId: string;
   name: string;
+  impersonator?: {
+    userId: string;
+    email: string;
+    name: string;
+  };
 };
 
 const SESSION_COOKIE = "email-stats-session";
@@ -54,7 +59,7 @@ export async function getSession(): Promise<Session | null> {
     const payload = await jwtVerify(token, getSecret());
     return payload.payload as Session;
   } catch {
-    cookieStore.delete(SESSION_COOKIE);
+      // Avoid mutating cookies when the session token is invalid
     return null;
   }
 }

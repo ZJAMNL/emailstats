@@ -31,12 +31,31 @@ git push -u origin main
 SESSION_SECRET=<een willekeurige veilige waarde van minimaal 32 tekens>
 NEXT_PUBLIC_SITE_URL=https://<jouw-domein>
 DATABASE_URL=postgresql://<gebruiker>:<wachtwoord>@<host>:5432/<database>?sslmode=require
-COPERNICA_API_URL=https://api.copernica.com
-COPERNICA_API_KEY=<copernica-api-key>
-COPERNICA_API_TOKEN=<copernica-access-token>
+COPERNICA_TOKEN_ENCRYPTION_KEY=<64 hextekens; genereer met openssl rand -hex 32>
+CRON_SECRET=<willekeurige waarde; genereer met openssl rand -base64 32>
 ```
 
-> De demo-wachtwoorden mogen nooit in productie worden gebruikt. Gebruik in productie een echte identity-provider of passwordless login.
+De klant voert het eigen Copernica API-v4 token en database-ID in via de klantomgeving. Tokens worden versleuteld opgeslagen met `COPERNICA_TOKEN_ENCRYPTION_KEY` en worden niet naar de browser teruggestuurd.
+
+### Database en eerste beheerder
+
+1. Maak PostgreSQL-databases aan, bijvoorbeeld via Neon of een andere Vercel Postgres-integratie. Gebruik **verschillende databases** voor Production en Preview; deel nooit productiegegevens met previews.
+2. Stel `DATABASE_URL` in voor zowel Production als Preview, elk met de eigen database.
+3. Voer lokaal migrations uit met de production `DATABASE_URL` in je genegeerde `.env.local`:
+
+```bash
+npm run db:migrate
+```
+
+4. Stel tijdelijk `ADMIN_EMAIL`, `ADMIN_NAME` en `ADMIN_PASSWORD` (minimaal 12 tekens) in je lokale, genegeerde environment in en bootstrap de eerste beheerder:
+
+```bash
+npm run db:seed
+```
+
+5. Verwijder de tijdelijke `ADMIN_PASSWORD`-waarde na de seed. De beheerder kan daarna klantaccounts aanmaken vanuit **Klanten**.
+
+De API-synchronisatie slaat campagne-totalen en alleen de geselecteerde profiel-aantallen op. Een dagelijkse Vercel Cron legt de meetpunten vast; `CRON_SECRET` beschermt de cronroute.
 
 ## 3. GitHub Secrets configureren
 

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/copernica",
+      "schedule": "17 4 * * *"
+    }
+  ]
+}

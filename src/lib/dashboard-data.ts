@@ -2,7 +2,7 @@ export type Metric = {
   label: string;
   value: string;
   delta: string;
-  trend: "up" | "down";
+  trend: "up" | "down" | "flat";
 };
 
 export type Campaign = {

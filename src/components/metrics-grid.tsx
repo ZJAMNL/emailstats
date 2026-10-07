@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import type { Metric } from "@/lib/dashboard-data";
 
 export function MetricsGrid({ metrics }: { metrics: Metric[] }) {
@@ -9,7 +9,7 @@ export function MetricsGrid({ metrics }: { metrics: Metric[] }) {
           <div className="metric-header">
             <span>{metric.label}</span>
             <span className={`trend ${metric.trend}`}>
-              {metric.trend === "up" ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+              {metric.trend === "up" ? <ArrowUpRight size={14} /> : metric.trend === "down" ? <ArrowDownRight size={14} /> : <Minus size={14} />}
               {metric.delta}
             </span>
           </div>

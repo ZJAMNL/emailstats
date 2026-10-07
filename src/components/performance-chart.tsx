@@ -2,7 +2,7 @@
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const data = [
+const demoData = [
   { name: "Jan", delivered: 42000, opens: 18000 },
   { name: "Feb", delivered: 52000, opens: 22200 },
   { name: "Mrt", delivered: 61000, opens: 27400 },
@@ -11,7 +11,9 @@ const data = [
   { name: "Jun", delivered: 98000, opens: 44100 },
 ];
 
-export function PerformanceChart() {
+type PerformancePoint = { name: string; delivered: number; opens: number };
+
+export function PerformanceChart({ data = demoData }: { data?: PerformancePoint[] }) {
   return (
     <section className="panel chart-panel">
       <div className="panel-heading">
