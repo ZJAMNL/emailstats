@@ -1,5 +1,6 @@
-import { Database, Eye, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowRight, Database, Eye, Pencil, Search, Trash2 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { deleteCustomerAction, impersonateCustomerAction, updateCustomerAction } from "@/app/actions";
 import { CreateCustomerDialog } from "@/components/create-customer-dialog";
@@ -64,10 +65,12 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
           const customer = client.users[0];
           return (
             <article key={client.id} className="client-card">
-              <div className="client-card-header"><div className="client-brand"><div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div><div><p className="eyebrow">{client.status === "active" ? "Actieve klant" : "Inactieve klant"}</p><h3>{client.name}</h3></div></div><span className={`status-badge ${client.status === "active" ? "status-good" : "status-wachtend"}`}>{client.status === "active" ? "Actief" : "Inactief"}</span></div>
-              <dl><div><dt>Login</dt><dd>{customer?.email ?? "Geen klantlogin"}</dd></div><div><dt>Campagnes</dt><dd>{client._count.campaigns}</dd></div><div><dt>Copernica-database</dt><dd>{client.copernica?.databaseId ?? "Niet gekoppeld"}</dd></div><div><dt>Selecties volgen</dt><dd>{client.selections.length}</dd></div></dl>
-              {client.selections.length ? <div className="admin-selection-overview" aria-label={`Gevolgde selecties van ${client.name}`}>{client.selections.map((selection) => <div key={selection.id}><span>{selection.name}</span><strong>{selection.snapshots[0]?.profileCount.toLocaleString("nl-NL") ?? "—"}</strong></div>)}</div> : null}
-              <div className="client-card-footer"><span><Database size={15} />{client.copernica ? `Laatste sync ${client.copernica.lastSyncedAt?.toLocaleString("nl-NL") ?? "nog niet"}` : "Geen Copernica-koppeling"}</span><span><ShieldCheck size={15} />Tenant-afgeschermd</span></div>
+              <Link className="client-card-summary" href={`/dashboard/admin/clients/${client.id}`} aria-label={`Bekijk alle gegevens van ${client.name}`}>
+                <div className="client-card-header"><div className="client-brand"><div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div><div><p className="eyebrow">{client.status === "active" ? "Actieve klant" : "Inactieve klant"}</p><h3>{client.name}</h3></div></div><span className={`status-badge ${client.status === "active" ? "status-good" : "status-wachtend"}`}>{client.status === "active" ? "Actief" : "Inactief"}</span></div>
+                <dl><div><dt>Login</dt><dd>{customer?.email ?? "Geen klantlogin"}</dd></div><div><dt>Campagnes</dt><dd>{client._count.campaigns}</dd></div><div><dt>Copernica-database</dt><dd>{client.copernica?.databaseId ?? "Niet gekoppeld"}</dd></div><div><dt>Selecties volgen</dt><dd>{client.selections.length}</dd></div></dl>
+                {client.selections.length ? <div className="admin-selection-overview" aria-label={`Gevolgde selecties van ${client.name}`}>{client.selections.map((selection) => <div key={selection.id}><span>{selection.name}</span><strong>{selection.snapshots[0]?.profileCount.toLocaleString("nl-NL") ?? "—"}</strong></div>)}</div> : null}
+                <div className="client-card-footer"><span><Database size={15} />{client.copernica ? `Laatste sync ${client.copernica.lastSyncedAt?.toLocaleString("nl-NL") ?? "nog niet"}` : "Geen Copernica-koppeling"}</span><span className="client-detail-link">Alle klantgegevens <ArrowRight size={15} /></span></div>
+              </Link>
               <details className="client-actions"><summary><Pencil size={15} /> Klant bewerken</summary>
                 <form action={updateCustomerAction} className="customer-form">
                   <input type="hidden" name="tenantId" value={client.id} />
