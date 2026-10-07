@@ -1,7 +1,6 @@
 import { Database, RefreshCw, ShieldCheck } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { connectCopernicaAction, syncCopernicaNowAction, updateCopernicaSelectionsAction } from "@/app/actions";
-import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 
@@ -46,22 +45,6 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
   }
 
   const enabledSelections = selections.filter((selection) => selection.enabled);
-  const pointMap = new Map<string, Record<string, string | number>>();
-
-  for (const selection of enabledSelections) {
-    for (const snapshot of selection.snapshots) {
-      const date = snapshot.measuredAt.toISOString().slice(0, 10);
-      const point = pointMap.get(date) ?? {};
-      point[selection.id] = snapshot.profileCount;
-      pointMap.set(date, point);
-    }
-  }
-
-  const chartData = [...pointMap.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, values]) => ({ date, ...values }));
-  const latestCount = (selection: (typeof enabledSelections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
-  const previousCount = (selection: (typeof enabledSelections)[number]) => selection.snapshots[1]?.profileCount ?? latestCount(selection);
 
   return (
     <DashboardShell role="customer" title="Copernica-data" subtitle="Koppel je database en kies welke selecties je wilt volgen.">
@@ -93,12 +76,8 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
         </section>
 
         <section className="panel table-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Profielontwikkeling</p><h2>Aantal profielen per selectie</h2></div><form action={syncCopernicaNowAction}><button className="button button-secondary" type="submit"><RefreshCw size={15} /> Nu synchroniseren</button></form></div>
-          <div className="selection-summary">{enabledSelections.map((selection, index) => {
-            const delta = latestCount(selection) - previousCount(selection);
-            return <article key={selection.id}><span className="selection-swatch" style={{ backgroundColor: colors[index % colors.length] }} /><div><p>{selection.name}</p><strong>{latestCount(selection).toLocaleString("nl-NL")}</strong><small className={delta < 0 ? "trend-down" : "trend-up"}>{delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL")} sinds vorige meting</small></div></article>;
-          })}</div>
-          <SelectionTrendChart data={chartData} selections={enabledSelections.map((selection, index) => ({ id: selection.id, name: selection.name, color: colors[index % colors.length] }))} />
+          <div className="panel-heading"><div><p className="eyebrow">Volgstatus</p><h2>Geselecteerde databronnen</h2></div><form action={syncCopernicaNowAction}><button className="button button-secondary" type="submit"><RefreshCw size={15} /> Nu synchroniseren</button></form></div>
+          {enabledSelections.length ? <div className="selection-summary">{enabledSelections.map((selection, index) => <article key={selection.id}><span className="selection-swatch" style={{ backgroundColor: colors[index % colors.length] }} /><div><p>{selection.name}</p><strong>{selection.snapshots[0]?.profileCount.toLocaleString("nl-NL") ?? "Nog geen meting"}</strong><small>{selection.snapshots[0] ? `Gemeten ${selection.snapshots[0].measuredAt.toLocaleString("nl-NL")}` : "Wordt zichtbaar na de eerste sync"}</small></div></article>)}</div> : <p className="empty-state">Kies hierboven minimaal één selectie om deze op je dashboard te volgen.</p>}
         </section>
       </> : null}
     </DashboardShell>

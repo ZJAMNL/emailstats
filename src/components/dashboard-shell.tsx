@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BarChart3, Database, LayoutDashboard, LogOut, Mail, ShieldCheck, Users } from "lucide-react";
 import { signOutAction, stopImpersonationAction } from "@/app/actions";
 import { getSession } from "@/lib/session";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function DashboardShell({
   title,
@@ -44,7 +45,7 @@ export async function DashboardShell({
         {session?.impersonator ? <div className="impersonation-banner" role="status"><span>Je bekijkt dit dashboard als {session.name}. Beheerder: {session.impersonator.name}.</span><form action={stopImpersonationAction}><button className="button button-secondary" type="submit">Terug naar beheer</button></form></div> : null}
         <header className="topbar">
           <div><p className="eyebrow">Dashboard</p><h1>{title}</h1><p className="subtitle">{subtitle}</p></div>
-          <div className="status-chip"><span /> Beveiligde omgeving</div>
+          <div className="topbar-actions"><ThemeToggle /><div className="status-chip"><span /> Beveiligde omgeving</div></div>
         </header>
         {children}
       </main>

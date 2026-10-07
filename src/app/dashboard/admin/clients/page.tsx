@@ -1,7 +1,8 @@
-import { Database, Eye, Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Database, Eye, Pencil, Search, ShieldCheck, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { createCustomerAction, deleteCustomerAction, impersonateCustomerAction, updateCustomerAction } from "@/app/actions";
+import { deleteCustomerAction, impersonateCustomerAction, updateCustomerAction } from "@/app/actions";
+import { CreateCustomerDialog } from "@/components/create-customer-dialog";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 
@@ -55,17 +56,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
           <input aria-label="Zoek klant" name="q" placeholder="Zoek klant" defaultValue={search} />
           <button className="button button-secondary" type="submit">Zoeken</button>
         </form>
-      </section>
-
-      <section className="panel form-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Nieuw account</p><h2>Klant toevoegen</h2></div><Plus size={19} /></div>
-        <form action={createCustomerAction} className="customer-form">
-          <label>Bedrijfsnaam<input name="name" autoComplete="organization" maxLength={120} required /></label>
-          <label>Logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPEG of WebP · maximaal 512 KB</small></label>
-          <label>Inlog-e-mailadres<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
-          <label>Tijdelijk wachtwoord<input name="password" type="password" autoComplete="new-password" minLength={12} required /><small>Minimaal 12 tekens. Deel dit wachtwoord veilig met de klant.</small></label>
-          <button className="button button-primary" type="submit"><Plus size={16} /> Klant aanmaken</button>
-        </form>
+        <CreateCustomerDialog />
       </section>
 
       <section className="client-grid" aria-label="Klanten">
@@ -74,8 +65,9 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
           return (
             <article key={client.id} className="client-card">
               <div className="client-card-header"><div className="client-brand"><div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div><div><p className="eyebrow">{client.status === "active" ? "Actieve klant" : "Inactieve klant"}</p><h3>{client.name}</h3></div></div><span className={`status-badge ${client.status === "active" ? "status-good" : "status-wachtend"}`}>{client.status === "active" ? "Actief" : "Inactief"}</span></div>
-              <dl><div><dt>Login</dt><dd>{customer?.email ?? "Geen klantlogin"}</dd></div><div><dt>Campagnes</dt><dd>{client._count.campaigns}</dd></div></dl>
-              <div className="client-card-footer"><span><Database size={15} />{client.copernica ? "Copernica gekoppeld" : "Geen Copernica-koppeling"}</span><span><ShieldCheck size={15} />Tenant-afgeschermd</span></div>
+              <dl><div><dt>Login</dt><dd>{customer?.email ?? "Geen klantlogin"}</dd></div><div><dt>Campagnes</dt><dd>{client._count.campaigns}</dd></div><div><dt>Copernica-database</dt><dd>{client.copernica?.databaseId ?? "Niet gekoppeld"}</dd></div><div><dt>Selecties volgen</dt><dd>{client.selections.length}</dd></div></dl>
+              {client.selections.length ? <div className="admin-selection-overview" aria-label={`Gevolgde selecties van ${client.name}`}>{client.selections.map((selection) => <div key={selection.id}><span>{selection.name}</span><strong>{selection.snapshots[0]?.profileCount.toLocaleString("nl-NL") ?? "—"}</strong></div>)}</div> : null}
+              <div className="client-card-footer"><span><Database size={15} />{client.copernica ? `Laatste sync ${client.copernica.lastSyncedAt?.toLocaleString("nl-NL") ?? "nog niet"}` : "Geen Copernica-koppeling"}</span><span><ShieldCheck size={15} />Tenant-afgeschermd</span></div>
               <details className="client-actions"><summary><Pencil size={15} /> Klant bewerken</summary>
                 <form action={updateCustomerAction} className="customer-form">
                   <input type="hidden" name="tenantId" value={client.id} />
@@ -107,6 +99,11 @@ function loadClients(search: string) {
       users: { where: { role: "CUSTOMER" }, take: 1 },
       _count: { select: { campaigns: true } },
       copernica: true,
+      selections: {
+        where: { enabled: true },
+        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 1 } },
+        orderBy: { name: "asc" },
+      },
     },
     orderBy: { name: "asc" },
   });
