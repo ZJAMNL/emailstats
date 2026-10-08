@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { RfmControls } from "@/components/rfm-controls";
-import { RfmHeatmap, RfmKpis, RfmQuality, RfmSegmentTable, RfmShifts, type RfmTrend } from "@/components/rfm-overview";
+import { RfmHeatmap, RfmKpis, RfmQuality, RfmSegmentTable, RfmShifts } from "@/components/rfm-overview";
 import { RfmSetup } from "@/components/rfm-setup";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
+import { buildRfmMonthlyChange, buildRfmTrend, loadRfmSnapshots } from "@/lib/rfm/history";
 import { loadMigrationMatrix, settingsFromConfig, type RfmRunSummary } from "@/lib/rfm/run";
-import { rfmSegments, type RfmSegmentKey } from "@/lib/rfm/segments";
+import { rfmSegments } from "@/lib/rfm/segments";
 import { requireRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -27,12 +28,12 @@ export default async function AdminClientRfm({ params }: { params: Promise<{ ten
   const config = tenant.rfmConfig;
   const summary = config?.enabled && config.lastRunSummary ? config.lastRunSummary as unknown as RfmRunSummary : null;
   const [snapshots, shifts] = summary ? await Promise.all([
-    loadSnapshots(tenantId),
+    loadRfmSnapshots(tenantId),
     loadMigrationMatrix(tenantId),
   ]) : [[], []];
 
-  const trendData = buildTrend(snapshots);
-  const trends = buildMonthlyChange(snapshots);
+  const trendData = buildRfmTrend(snapshots);
+  const trends = buildRfmMonthlyChange(snapshots);
   const back = <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}`}><ArrowLeft size={16} /> Terug naar {tenant.name}</Link>;
 
   return (
@@ -64,34 +65,4 @@ export default async function AdminClientRfm({ params }: { params: Promise<{ ten
       </section> : null}
     </DashboardShell>
   );
-}
-
-function loadSnapshots(tenantId: string) {
-  const since = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
-  return getPrismaClient().rfmSegmentSnapshot.findMany({ where: { tenantId, measuredAt: { gte: since } }, orderBy: { measuredAt: "asc" } });
-}
-
-type Snapshot = { measuredAt: Date; segment: string; customers: number };
-
-function buildTrend(snapshots: Snapshot[]) {
-  const points = new Map<string, { date: string; [segment: string]: number | string }>();
-  for (const snapshot of snapshots) {
-    const date = snapshot.measuredAt.toISOString().slice(0, 10);
-    const point = points.get(date) ?? { date };
-    point[snapshot.segment] = snapshot.customers;
-    points.set(date, point);
-  }
-  return [...points.values()];
-}
-
-function buildMonthlyChange(snapshots: Snapshot[]): RfmTrend[] {
-  if (!snapshots.length) return [];
-  const latest = snapshots[snapshots.length - 1].measuredAt.getTime();
-  const target = latest - 30 * 24 * 60 * 60 * 1000;
-  const previousDate = [...new Set(snapshots.map((snapshot) => snapshot.measuredAt.getTime()))].filter((time) => time <= target).pop();
-  return rfmSegments.map((segment) => ({
-    key: segment.key as RfmSegmentKey,
-    current: snapshots.find((snapshot) => snapshot.measuredAt.getTime() === latest && snapshot.segment === segment.key)?.customers ?? 0,
-    previous: previousDate === undefined ? null : snapshots.find((snapshot) => snapshot.measuredAt.getTime() === previousDate && snapshot.segment === segment.key)?.customers ?? null,
-  }));
 }

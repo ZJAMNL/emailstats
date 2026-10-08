@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BarChart3, Database, LayoutDashboard, LogOut, Mail, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, Database, Gem, LayoutDashboard, LogOut, Mail, ShieldCheck, Users } from "lucide-react";
 import { signOutAction, stopImpersonationAction } from "@/app/actions";
 import { getSession } from "@/lib/session";
+import { isRfmVisibleToCustomer } from "@/lib/rfm/history";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -20,10 +21,14 @@ export async function DashboardShell({
   const modules = role === "customer" && session?.tenantId && process.env.DATABASE_URL
     ? await getTenantDashboardModules(session.tenantId).catch(() => null)
     : null;
+  const showRfm = role === "customer" && session?.tenantId && process.env.DATABASE_URL
+    ? await isRfmVisibleToCustomer(session.tenantId).catch(() => false)
+    : false;
   const links = [
     { href: role === "admin" ? "/dashboard/admin" : "/dashboard/customer", label: "Overzicht", icon: LayoutDashboard },
     { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Beheer", icon: role === "admin" ? Users : Database },
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
+    ...(showRfm ? [{ href: "/dashboard/customer/rfm", label: "RFM-model", icon: Gem }] : []),
   ].filter((link) => link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false);
 
   return (
