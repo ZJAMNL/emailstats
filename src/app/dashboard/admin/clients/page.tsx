@@ -63,13 +63,26 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
       <section className="client-grid" aria-label="Klanten">
         {clients.map((client) => {
           const modules = readTenantDashboardModules(client.settings);
+          const showProfiles = modules.databaseStats && client.selections.length > 0;
+          const profileTotal = client.selections.reduce((total, selection) => total + (selection.snapshots[0]?.profileCount ?? 0), 0);
+          const profileDelta = showProfiles ? dailyProfileDelta(client.selections) : null;
+          const lastSync = client.copernica?.lastSyncedAt;
           return (
-            <article key={client.id} className="client-card client-widget">
+            <article key={client.id} className="panel client-card client-widget">
               <div className="client-widget-header">
-                <div className="client-logo client-widget-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={56} height={56} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div>
-                <div className="client-widget-title"><h3>{client.name}</h3>{client.status !== "active" ? <span className="status-badge status-wachtend">Inactief</span> : null}</div>
+                <div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div>
+                <p className="eyebrow">{client.status === "active" ? "Klant" : "Inactieve klant"}</p>
+                <span className={`selection-widget-dot${client.status === "active" ? "" : " is-inactive"}`} aria-label={client.status === "active" ? "Actief" : "Inactief"} />
               </div>
+              <h2 className="client-widget-name">{client.name}</h2>
+              <strong className="selection-widget-value">{(showProfiles ? profileTotal : client._count.campaigns).toLocaleString("nl-NL")}</strong>
+              <p className="client-widget-metric">{showProfiles ? "profielen in gevolgde selecties" : "campagnes gesynchroniseerd"}</p>
+              {showProfiles ? profileDelta === null
+                ? <p className="selection-widget-delta selection-widget-delta-empty">Nog geen meting van gisteren</p>
+                : <p className={`selection-widget-delta ${profileDelta < 0 ? "trend-down" : profileDelta > 0 ? "trend-up" : "trend-flat"}`}>{profileDelta > 0 ? "+" : ""}{profileDelta.toLocaleString("nl-NL")} sinds gisteren</p> : null}
               <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span></div>
+              <div className="client-widget-footer">
+                <small className="selection-widget-date">{client.copernica ? lastSync ? `Laatste sync ${lastSync.toLocaleDateString("nl-NL")}` : "Nog niet gesynchroniseerd" : "Geen Copernica-koppeling"}</small>
               <ClientEditDialog client={{
                 id: client.id,
                 name: client.name,
@@ -82,6 +95,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
                 selections: client.selections.map((selection) => ({ id: selection.id, name: selection.name, profileCount: selection.snapshots[0]?.profileCount ?? null })),
                 modules,
               }} />
+              </div>
             </article>
           );
         })}
@@ -100,10 +114,24 @@ function loadClients(search: string) {
       copernica: true,
       selections: {
         where: { enabled: true },
-        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 1 } },
+        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 3 } },
         orderBy: { name: "asc" },
       },
     },
     orderBy: { name: "asc" },
   });
+}
+
+const dayMs = 24 * 60 * 60 * 1000;
+
+function dailyProfileDelta(selections: Array<{ snapshots: Array<{ measuredAt: Date; profileCount: number }> }>) {
+  let delta = 0;
+  for (const selection of selections) {
+    const [latest, ...older] = selection.snapshots;
+    if (!latest) continue;
+    const previous = older.find((snapshot) => snapshot.measuredAt.getTime() <= latest.measuredAt.getTime() - dayMs);
+    if (!previous) return null;
+    delta += latest.profileCount - previous.profileCount;
+  }
+  return delta;
 }
