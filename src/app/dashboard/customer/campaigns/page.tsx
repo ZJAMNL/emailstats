@@ -3,6 +3,7 @@ import { CampaignDatePicker } from "@/components/campaign-date-picker";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
+import { filterCampaigns, getCustomerScope } from "@/lib/webshops";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,8 @@ export default async function CustomerCampaigns({ searchParams }: CampaignPagePr
   if (process.env.DATABASE_URL) {
     try {
       campaignStatsEnabled = (await getTenantDashboardModules(session.tenantId)).campaignStats;
-      if (campaignStatsEnabled) campaigns = await loadCampaigns(session.tenantId, from, to);
+      const { current: scope } = await getCustomerScope(session);
+      if (campaignStatsEnabled && scope) campaigns = filterCampaigns(await loadCampaigns(session.tenantId, from, to), scope.webshop);
     } catch {
       databaseUnavailable = true;
     }

@@ -65,7 +65,7 @@ function parseDate(raw: string | undefined) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? date : null;
 }
 
-export async function previewSelectionHistory(tenantId: string, text: string): Promise<HistoryPreview> {
+export async function previewSelectionHistory(tenantId: string, text: string, scope = "all"): Promise<HistoryPreview> {
   const parsed = parseHistoryCsv(text);
   const selections = await getPrismaClient().copernicaSelection.findMany({
     where: { tenantId },
@@ -98,7 +98,7 @@ export async function previewSelectionHistory(tenantId: string, text: string): P
   const dates = parsed.rows.map((row) => row.date.getTime()).sort((a, b) => a - b);
   const existing = dates.length ? await getPrismaClient().selectionSnapshot.groupBy({
     by: ["selectionId"],
-    where: { selection: { tenantId }, measuredAt: { in: [...new Set(dates)].map((time) => new Date(time)) } },
+    where: { scope, selection: { tenantId }, measuredAt: { in: [...new Set(dates)].map((time) => new Date(time)) } },
     _count: { _all: true },
   }) : [];
   return {
@@ -117,6 +117,7 @@ export async function importSelectionHistory(
   text: string,
   mapping: Record<string, string>,
   followSelections: boolean,
+  scope = "all",
 ) {
   const prisma = getPrismaClient();
   const parsed = parseHistoryCsv(text);
@@ -124,18 +125,18 @@ export async function importSelectionHistory(
   const owned = await prisma.copernicaSelection.findMany({ where: { tenantId, id: { in: selectionIds } }, select: { id: true } });
   if (owned.length !== selectionIds.length) throw new Error("Invalid selection mapping.");
 
-  const records = new Map<string, { selectionId: string; measuredAt: Date; profileCount: number }>();
+  const records = new Map<string, { selectionId: string; scope: string; measuredAt: Date; profileCount: number }>();
   for (const row of parsed.rows) {
     for (const [index, selectionId] of Object.entries(mapping)) {
       if (!selectionId) continue;
       const count = parseCount(row.cells[Number(index)]);
       if (count === null || Number.isNaN(count)) continue;
-      records.set(`${selectionId}|${row.date.getTime()}`, { selectionId, measuredAt: row.date, profileCount: count });
+      records.set(`${selectionId}|${row.date.getTime()}`, { selectionId, scope, measuredAt: row.date, profileCount: count });
     }
   }
 
   const existing = await prisma.selectionSnapshot.findMany({
-    where: { selectionId: { in: selectionIds }, measuredAt: { in: [...new Set(parsed.rows.map((row) => row.date.getTime()))].map((time) => new Date(time)) } },
+    where: { scope, selectionId: { in: selectionIds }, measuredAt: { in: [...new Set(parsed.rows.map((row) => row.date.getTime()))].map((time) => new Date(time)) } },
     select: { id: true, selectionId: true, measuredAt: true },
   });
   const existingIds = new Map(existing.map((snapshot) => [`${snapshot.selectionId}|${snapshot.measuredAt.getTime()}`, snapshot.id]));

@@ -5,6 +5,7 @@ import { PerformanceChart } from "@/components/performance-chart";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { canManageTenant, filterCampaigns, getCustomerScope } from "@/lib/webshops";
 import { SelectionWidgetGrid, type SelectionWidgetData } from "@/components/selection-widget-grid";
 import { readSelectionRatios, readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
 
@@ -36,12 +37,14 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const { vergelijk, bereik } = await searchParams;
   const chartRange: ChartRange = bereik && bereik in chartRanges ? bereik as ChartRange : defaultChartRange;
   const period: ComparePeriod = vergelijk && vergelijk in comparePeriods ? vergelijk as ComparePeriod : "dag";
+  const { allowed, current: scope } = await getCustomerScope(session);
+  if (!scope) return <DashboardShell role="customer" title={session.name} subtitle="Je dashboard"><p className="empty-state">Je account heeft nog geen toegang tot een webshop. Neem contact op met je beheerder.</p></DashboardShell>;
   let tenant: Awaited<ReturnType<typeof loadTenant>> = null;
   let databaseUnavailable = false;
 
   if (process.env.DATABASE_URL) {
     try {
-      tenant = await loadTenant(session.tenantId);
+      tenant = await loadTenant(session.tenantId, scope.id);
     } catch {
       databaseUnavailable = true;
     }
@@ -49,7 +52,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
     databaseUnavailable = true;
   }
 
-  const campaigns = tenant?.campaigns ?? [];
+  const campaigns = filterCampaigns(tenant?.campaigns ?? [], scope.webshop);
   const sent = campaigns.reduce((total, campaign) => total + campaign.sentCount, 0);
   const opens = campaigns.reduce((total, campaign) => total + campaign.openCount, 0);
   const clicks = campaigns.reduce((total, campaign) => total + campaign.clickCount, 0);
@@ -126,7 +129,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   ];
 
   return (
-    <DashboardShell role="customer" title={tenant?.name ?? session.name} subtitle="Je e-mailcampagnes en prestaties uit Copernica.">
+    <DashboardShell role="customer" title={tenant?.name ?? session.name} subtitle={scope.webshop ? `Gegevens van webshop ${scope.name}.` : "Je e-mailcampagnes en prestaties uit Copernica."}>
       {databaseUnavailable ? <p className="form-error" role="status">De klantdatabase is nog niet geconfigureerd. Vraag de beheerder om PostgreSQL in te stellen en te migreren.</p> : null}
       {dashboardModules.campaignStats ? <>
         <MetricsGrid metrics={metrics} />
@@ -162,7 +165,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
             {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => <Link aria-current={key === period ? "page" : undefined} href={dashboardHref({ period: key })} key={key} scroll={false}>{comparePeriods[key].label}</Link>)}
           </nav>
         </div>
-        <SelectionWidgetGrid widgets={selectionWidgets} />
+        <SelectionWidgetGrid canEdit={canManageTenant(allowed)} widgets={selectionWidgets} />
       </> : tenant?.copernica ? <section className="panel table-panel selection-empty-panel"><p className="eyebrow">Profieldata</p><h2>Nog geen selecties gekozen</h2><p>Kies in Beheer welke Copernica-selecties je op dit dashboard wilt volgen.</p><a className="button button-secondary" href="/dashboard/customer/data">Selecties beheren</a></section> : null}
       {dashboardModules.campaignStats && campaigns.length === 0 && !databaseUnavailable ? <section className="panel table-panel"><p className="empty-state">Nog geen campagnes gesynchroniseerd. Koppel Copernica en synchroniseer een periode via Campagnes.</p></section> : null}
       {dashboardModules.campaignStats ? <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Recent gesynchroniseerd</h2></div><span className="tab">{visibleCampaigns.length} campagnes</span></div>{visibleCampaigns.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Open rate</th><th>CTR</th></tr></thead><tbody>{visibleCampaigns.slice(0, 10).map((campaign) => <tr key={campaign.id}><td>{campaign.name}</td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "-"}</td><td>{campaign.sentCount.toLocaleString("nl-NL")}</td><td>{campaign.sentCount ? `${((campaign.openCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td></tr>)}</tbody></table></div> : null}</section> : null}
@@ -171,7 +174,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   );
 }
 
-function loadTenant(tenantId: string) {
+function loadTenant(tenantId: string, scope: string) {
   return getPrismaClient().tenant.findUnique({
     where: { id: tenantId },
     include: {
@@ -182,7 +185,7 @@ function loadTenant(tenantId: string) {
       },
       selections: {
         where: { enabled: true },
-        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 400 } },
+        include: { snapshots: { where: { scope }, orderBy: { measuredAt: "desc" }, take: 400 } },
         orderBy: { name: "asc" },
       },
     },

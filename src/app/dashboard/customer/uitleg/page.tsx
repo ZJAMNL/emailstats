@@ -5,6 +5,7 @@ import { getPrismaClient } from "@/lib/prisma";
 import type { RfmRunSummary } from "@/lib/rfm/run";
 import { requireRole } from "@/lib/session";
 import { readSelectionRatios, readTenantDashboardModules } from "@/lib/tenant-settings";
+import { canManageTenant, filterCampaigns, getCustomerScope, type WebshopDefinition } from "@/lib/webshops";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Uitleg modellen" };
@@ -16,11 +17,12 @@ type Status = { tone: "ok" | "off" | "missing"; text: string };
 
 export default async function CustomerExplanation() {
   const session = await requireRole("customer");
-  const data = process.env.DATABASE_URL ? await loadData(session.tenantId).catch(() => null) : null;
+  const { allowed, current: scope } = await getCustomerScope(session);
+  const data = process.env.DATABASE_URL ? await loadData(session.tenantId, scope?.webshop ?? null).catch(() => null) : null;
   const modules = readTenantDashboardModules(data?.tenant?.settings);
   const rfm = data?.tenant?.rfmConfig;
   const summary = rfm?.enabled && rfm.lastRunSummary ? rfm.lastRunSummary as unknown as RfmRunSummary : null;
-  const rfmVisible = Boolean(summary && rfm?.customerVisible);
+  const rfmVisible = Boolean(summary && rfm?.customerVisible && canManageTenant(allowed));
   const connected = Boolean(data?.tenant?.copernica);
   const ratioCount = Object.keys(readSelectionRatios(data?.tenant?.settings)).length;
 
@@ -86,14 +88,16 @@ export default async function CustomerExplanation() {
   );
 }
 
-async function loadData(tenantId: string) {
+async function loadData(tenantId: string, webshop: WebshopDefinition | null) {
   const prisma = getPrismaClient();
   const [tenant, selections, enabledSelections, firstSnapshot, campaignStats] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true, copernica: { select: { databaseId: true, lastSyncedAt: true } }, rfmConfig: true } }),
     prisma.copernicaSelection.count({ where: { tenantId } }),
     prisma.copernicaSelection.count({ where: { tenantId, enabled: true } }),
-    prisma.selectionSnapshot.findFirst({ where: { selection: { tenantId, enabled: true } }, orderBy: { measuredAt: "asc" }, select: { measuredAt: true } }),
-    prisma.campaign.aggregate({ where: { tenantId }, _count: { _all: true }, _min: { sentAt: true }, _max: { sentAt: true } }),
+    prisma.selectionSnapshot.findFirst({ where: { scope: "all", selection: { tenantId, enabled: true } }, orderBy: { measuredAt: "asc" }, select: { measuredAt: true } }),
+    prisma.campaign.findMany({ where: { tenantId }, select: { name: true, sentAt: true } }),
   ]);
-  return { tenant, selections, enabledSelections, firstSnapshot: firstSnapshot?.measuredAt ?? null, campaigns: campaignStats._count._all, firstCampaign: campaignStats._min.sentAt, lastCampaign: campaignStats._max.sentAt };
+  const campaigns = filterCampaigns(campaignStats, webshop);
+  const dates = campaigns.map((campaign) => campaign.sentAt?.getTime()).filter((time): time is number => time !== undefined).sort((left, right) => left - right);
+  return { tenant, selections, enabledSelections, firstSnapshot: firstSnapshot?.measuredAt ?? null, campaigns: campaigns.length, firstCampaign: dates.length ? new Date(dates[0]) : null, lastCampaign: dates.length ? new Date(dates[dates.length - 1]) : null };
 }

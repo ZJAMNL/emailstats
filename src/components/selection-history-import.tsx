@@ -7,12 +7,13 @@ import type { HistoryPreview } from "@/lib/selection-history";
 
 const dateFormat = (value: string | null) => value ? new Date(`${value}T12:00:00Z`).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" }) : "—";
 
-export function SelectionHistoryImport({ tenantId }: { tenantId: string }) {
+export function SelectionHistoryImport({ tenantId, webshops = [] }: { tenantId: string; webshops?: { id: string; name: string }[] }) {
   const [csv, setCsv] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<HistoryPreview | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [follow, setFollow] = useState(true);
+  const [scope, setScope] = useState("all");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -32,7 +33,7 @@ export function SelectionHistoryImport({ tenantId }: { tenantId: string }) {
     const text = await file.text();
     setFileName(file.name);
     startTransition(async () => {
-      const response = await previewSelectionHistoryAction(tenantId, text);
+      const response = await previewSelectionHistoryAction(tenantId, text, scope);
       if (!response.ok) {
         setError(response.error);
         return;
@@ -46,7 +47,7 @@ export function SelectionHistoryImport({ tenantId }: { tenantId: string }) {
   function runImport() {
     if (!csv) return;
     startTransition(async () => {
-      const response = await importSelectionHistoryAction(tenantId, csv, mapping, follow);
+      const response = await importSelectionHistoryAction(tenantId, csv, mapping, follow, scope);
       if (!response.ok) {
         setError(response.error);
         return;
@@ -70,6 +71,13 @@ export function SelectionHistoryImport({ tenantId }: { tenantId: string }) {
       {done ? <p className="form-success" role="status">{done}</p> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
 
+      {webshops.length && !preview ? <label className="history-scope">De cijfers gelden voor
+        <select onChange={(event) => setScope(event.target.value)} value={scope}>
+          <option value="all">Alle webshops (hele database)</option>
+          {webshops.map((webshop) => <option key={webshop.id} value={webshop.id}>{webshop.name}</option>)}
+        </select>
+      </label> : null}
+      {preview && webshops.length ? <p className="history-note">Importeert voor: <strong>{scope === "all" ? "Alle webshops" : webshops.find((webshop) => webshop.id === scope)?.name}</strong></p> : null}
       {!preview ? <label className="history-dropzone">
         <FileUp size={22} />
         <span><strong>{isPending ? "Bestand wordt gecontroleerd…" : "Kies een CSV-bestand"}</strong><small>Eerste kolom een datum (dd-mm-jjjj of jjjj-mm-dd), daarna één kolom per selectie. Puntkomma, komma of tab als scheidingsteken.</small></span>

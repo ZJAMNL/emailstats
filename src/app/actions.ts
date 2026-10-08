@@ -1,6 +1,7 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
+import { getAppUrl } from "@/lib/app-url";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
@@ -10,6 +11,7 @@ import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
 import { sendDemoRequest } from "@/lib/demo-request";
 import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
+import { requireTenantManager } from "@/lib/webshops";
 import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
 import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
 
@@ -32,7 +34,8 @@ export async function impersonateCustomerAction(formData: FormData) {
   try {
     const tenant = await getPrismaClient().tenant.findFirst({
       where: { id: tenantId, status: "active" },
-      include: { users: { where: { role: "CUSTOMER" }, take: 1 } },
+      // The primary (oldest) login, which always has access to every webshop.
+      include: { users: { where: { role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, take: 1 } },
     });
     const customer = tenant?.users[0];
 
@@ -132,10 +135,9 @@ export async function updateCustomerAction(formData: FormData) {
         where: { id: tenantId },
         data: { name, ...(logoDataUrl !== undefined ? { logoDataUrl } : {}) },
       });
-      await transaction.user.updateMany({
-        where: { tenantId, role: "CUSTOMER" },
-        data: { name, email },
-      });
+      // Only the primary login; additional users are managed under Gebruikers.
+      const primary = await transaction.user.findFirst({ where: { tenantId, role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+      if (primary) await transaction.user.update({ where: { id: primary.id }, data: { name, email } });
     });
     await saveTenantDashboardModules(tenantId, readDashboardModules(formData));
   } catch {
@@ -167,7 +169,7 @@ export async function sendLoginLinkAction(formData: FormData) {
   const separator = returnTo.includes("?") ? "&" : "?";
 
   try {
-    const user = await getPrismaClient().user.findFirst({ where: { tenantId, role: "CUSTOMER" } });
+    const user = await getPrismaClient().user.findFirst({ where: { tenantId, role: "CUSTOMER" }, orderBy: { createdAt: "asc" } });
     if (!user) throw new Error("No customer login.");
     await sendPasswordMail(user, "invite", await getAppUrl());
   } catch {
@@ -255,21 +257,31 @@ export async function updateTenantDashboardModulesAction(formData: FormData) {
 
 const maxHistoryCsvLength = 500_000;
 
-export async function previewSelectionHistoryAction(tenantId: string, csv: string) {
+async function validHistoryScope(tenantId: string, scope: string) {
+  if (scope === "all") return "all";
+  const webshop = await getPrismaClient().webshop.findFirst({ where: { id: scope, tenantId }, select: { id: true } });
+  return webshop?.id ?? null;
+}
+
+export async function previewSelectionHistoryAction(tenantId: string, csv: string, requestedScope = "all") {
   await requireRole("admin");
+  const scope = await validHistoryScope(tenantId, String(requestedScope));
+  if (!scope) return { ok: false as const, error: "Deze webshop bestaat niet." };
   if (typeof csv !== "string" || csv.length > maxHistoryCsvLength) return { ok: false as const, error: "Het bestand is te groot (maximaal 500 KB)." };
   try {
-    return { ok: true as const, preview: await previewSelectionHistory(tenantId, csv) };
+    return { ok: true as const, preview: await previewSelectionHistory(tenantId, csv, scope) };
   } catch {
     return { ok: false as const, error: "Het bestand kon niet worden gelezen." };
   }
 }
 
-export async function importSelectionHistoryAction(tenantId: string, csv: string, mapping: Record<string, string>, followSelections: boolean) {
+export async function importSelectionHistoryAction(tenantId: string, csv: string, mapping: Record<string, string>, followSelections: boolean, requestedScope = "all") {
   await requireRole("admin");
+  const scope = await validHistoryScope(tenantId, String(requestedScope));
+  if (!scope) return { ok: false as const, error: "Deze webshop bestaat niet." };
   if (typeof csv !== "string" || csv.length > maxHistoryCsvLength) return { ok: false as const, error: "Het bestand is te groot (maximaal 500 KB)." };
   try {
-    const result = await importSelectionHistory(tenantId, csv, mapping, followSelections === true);
+    const result = await importSelectionHistory(tenantId, csv, mapping, followSelections === true, scope);
     refresh();
     return { ok: true as const, result };
   } catch {
@@ -279,6 +291,7 @@ export async function importSelectionHistoryAction(tenantId: string, csv: string
 
 export async function connectCopernicaAction(formData: FormData) {
   const session = await requireRole("customer");
+  if (!(await requireTenantManager(session))) redirect("/dashboard/customer/data?error=not-allowed");
   const databaseId = readField(formData, "databaseId");
   const apiToken = readField(formData, "apiToken");
 
@@ -320,6 +333,7 @@ export async function connectCopernicaAction(formData: FormData) {
 
 export async function updateCopernicaSelectionsAction(formData: FormData) {
   const session = await requireRole("customer");
+  if (!(await requireTenantManager(session))) redirect("/dashboard/customer/data?error=not-allowed");
   const selectedIds = [...new Set(formData.getAll("selectionId").filter((value): value is string => typeof value === "string"))];
   const prisma = getPrismaClient();
 
@@ -336,6 +350,7 @@ export async function updateCopernicaSelectionsAction(formData: FormData) {
 
 export async function updateSelectionWidgetAction(formData: FormData) {
   const session = await requireRole("customer");
+  if (!(await requireTenantManager(session))) return { ok: false };
 
   try {
     await saveSelectionWidget(session.tenantId, readField(formData, "selectionId"), {
@@ -354,6 +369,7 @@ export async function updateSelectionWidgetAction(formData: FormData) {
 
 export async function reorderSelectionWidgetsAction(order: string[]) {
   const session = await requireRole("customer");
+  if (!(await requireTenantManager(session))) throw new Error("Not allowed.");
   if (!Array.isArray(order) || order.some((id) => typeof id !== "string")) throw new Error("Invalid order.");
   await saveSelectionWidgetOrder(session.tenantId, order);
 }
@@ -361,6 +377,7 @@ export async function reorderSelectionWidgetsAction(order: string[]) {
 export async function syncCopernicaNowAction() {
   const session = await requireSession();
   if (session.role !== "customer") redirect("/login");
+  if (!(await requireTenantManager(session))) redirect("/dashboard/customer/data?error=not-allowed");
 
   try {
     await syncTenantCopernicaData(session.tenantId);
@@ -379,6 +396,8 @@ export async function syncCampaignsAction(formData: FormData) {
   if (!isDateOnly(from) || !isDateOnly(to) || from > to) {
     redirect("/dashboard/customer/campaigns?error=invalid-date");
   }
+  // Syncing writes tenant-wide data; users limited to some webshops only filter what is already there.
+  if (!(await requireTenantManager(session))) redirect(`/dashboard/customer/campaigns?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 
   try {
     await syncTenantCopernicaData(session.tenantId, { from, to });
@@ -387,16 +406,6 @@ export async function syncCampaignsAction(formData: FormData) {
   }
 
   redirect(`/dashboard/customer/campaigns?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&notice=synced`);
-}
-
-async function getAppUrl() {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
-  // Never derive production links from request headers, so a spoofed Host can't end up in a reset mail.
-  if (process.env.VERCEL_ENV === "production") return "https://dashboard.enzo.email";
-  const headerStore = await headers();
-  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "dashboard.enzo.email";
-  const protocol = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${protocol}://${host}`;
 }
 
 function readField(formData: FormData, key: string) {

@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { connectCopernicaAction, syncCopernicaNowAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { ALL_SCOPE, requireTenantManager } from "@/lib/webshops";
 import { SelectionPicker } from "@/components/selection-picker";
 import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
@@ -29,6 +30,9 @@ const errorText: Record<string, string> = {
 export default async function CustomerData({ searchParams }: DataPageProps) {
   const session = await requireRole("customer");
   const params = await searchParams;
+  if (!(await requireTenantManager(session))) {
+    return <DashboardShell role="customer" title="Beheer" subtitle="Instellingen voor je Copernica-koppeling en selecties."><p className="empty-state">Je account heeft toegang tot een deel van de webshops. De koppeling en selecties worden beheerd door een gebruiker met toegang tot alle webshops.</p></DashboardShell>;
+  }
   let connection: Awaited<ReturnType<typeof loadConnection>> = null;
   let selections: Awaited<ReturnType<typeof loadSelections>> = [];
   let enabledSelections: Awaited<ReturnType<typeof loadEnabledSelections>> = [];
@@ -111,7 +115,7 @@ function loadSelections(tenantId: string) {
 function loadEnabledSelections(tenantId: string) {
   return getPrismaClient().copernicaSelection.findMany({
     where: { tenantId, enabled: true },
-    include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 1 } },
+    include: { snapshots: { where: { scope: ALL_SCOPE }, orderBy: { measuredAt: "desc" }, take: 1 } },
     orderBy: { name: "asc" },
   });
 }

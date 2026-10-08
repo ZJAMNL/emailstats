@@ -1,6 +1,7 @@
 import { getPrismaClient } from "./prisma";
 import { decryptCopernicaToken } from "./copernica-crypto";
 import { getTenantDashboardModules } from "./tenant-settings";
+import { loadWebshops, type WebshopDefinition } from "./webshops";
 
 export { decryptCopernicaToken, encryptCopernicaToken } from "./copernica-crypto";
 
@@ -68,7 +69,8 @@ export async function getCopernicaJwt(apiToken: string) {
 
 export async function copernicaGet<T>(jwt: string, path: string, params?: URLSearchParams) {
   const url = new URL(`${COPERNICA_API_URL}/${path.replace(/^\//, "")}`);
-  params?.forEach((value, key) => url.searchParams.set(key, value));
+  // append, not set: Copernica takes repeated keys such as several `fields[]` conditions.
+  params?.forEach((value, key) => url.searchParams.append(key, value));
 
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${jwt}`, Accept: "application/json" },
@@ -127,6 +129,31 @@ async function fetchCopernicaProfileCountWithJwt(jwt: string, viewId: string) {
   return Number(result.total ?? result.data?.length ?? 0);
 }
 
+/** Counts profiles behind a Copernica list path (a view or a database) whose webshop field holds one of the webshop's values. */
+export async function countProfilesForWebshop(jwt: string, path: string, webshop: Pick<WebshopDefinition, "profileField" | "fieldValues">) {
+  const counts = await Promise.all(webshop.fieldValues.filter((value) => value.trim()).map(async (value) => {
+    const result = await copernicaGet<CopernicaList<unknown>>(jwt, path, new URLSearchParams([["start", "0"], ["limit", "1"], ["total", "true"], ["fields[]", `${webshop.profileField}==${value.trim()}`]]));
+    return Number(result.total ?? 0);
+  }));
+  return counts.reduce((total, count) => total + count, 0);
+}
+
+export async function listDatabaseFields(jwt: string, databaseId: string) {
+  const result = await copernicaGet<CopernicaList<{ ID: number | string; name: string; type?: string }>>(jwt, `database/${encodeURIComponent(databaseId)}/fields`, new URLSearchParams({ limit: "1000" }));
+  return (result.data ?? []).map((field) => ({ id: String(field.ID), name: field.name, type: field.type ?? "" }));
+}
+
+/** The most common values of a profile field among the first 1,000 profiles, to help pick a webshop's values. */
+export async function sampleProfileFieldValues(jwt: string, databaseId: string, field: string) {
+  const result = await copernicaGet<CopernicaList<{ fields?: Record<string, unknown> }>>(jwt, `database/${encodeURIComponent(databaseId)}/profiles`, new URLSearchParams({ start: "0", limit: "1000" }));
+  const counts = new Map<string, number>();
+  for (const profile of result.data ?? []) {
+    const value = String(profile.fields?.[field] ?? "").trim();
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((left, right) => right[1] - left[1]).slice(0, 25).map(([value, count]) => ({ value, count }));
+}
+
 export async function getTenantCopernica(tenantId: string) {
   const connection = await getPrismaClient().copernicaConnection.findUnique({ where: { tenantId } });
   if (!connection) return null;
@@ -168,14 +195,21 @@ export async function syncTenantCopernicaData(
     selectionCount = enabledSelections.length;
     const measuredAt = new Date();
     measuredAt.setUTCHours(0, 0, 0, 0);
-    await Promise.all(enabledSelections.map(async (selection) => {
-      const profileCount = await fetchCopernicaProfileCountWithJwt(jwt, selection.copernicaId);
+    const webshops = await loadWebshops(tenantId);
+    // One count for the whole database plus one per webshop for every followed selection.
+    const tasks = enabledSelections.flatMap((selection) => [
+      { selection, scope: "all", webshop: null as WebshopDefinition | null },
+      ...webshops.map((webshop) => ({ selection, scope: webshop.id, webshop })),
+    ]);
+    await mapInBatches(tasks, 8, async ({ selection, scope, webshop }) => {
+      const path = `view/${encodeURIComponent(selection.copernicaId)}/profiles`;
+      const profileCount = webshop ? await countProfilesForWebshop(jwt, path, webshop) : await fetchCopernicaProfileCountWithJwt(jwt, selection.copernicaId);
       await prisma.selectionSnapshot.upsert({
-        where: { selectionId_measuredAt: { selectionId: selection.id, measuredAt } },
-        create: { selectionId: selection.id, measuredAt, profileCount },
+        where: { selectionId_scope_measuredAt: { selectionId: selection.id, scope, measuredAt } },
+        create: { selectionId: selection.id, scope, measuredAt, profileCount },
         update: { profileCount },
       });
-    }));
+    });
   }
 
   if (modules.campaignStats) {

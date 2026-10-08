@@ -6,6 +6,7 @@ import { buildRfmMonthlyChange, buildRfmTrend, loadRfmResult, loadRfmSnapshots }
 import { loadMigrationMatrix } from "@/lib/rfm/run";
 import { rfmSegments } from "@/lib/rfm/segments";
 import { requireRole } from "@/lib/session";
+import { requireTenantManager } from "@/lib/webshops";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "RFM-model" };
@@ -15,6 +16,8 @@ const percent = (value: number) => `${(value * 100).toLocaleString("nl-NL", { ma
 export default async function CustomerRfm() {
   const session = await requireRole("customer");
   if (!process.env.DATABASE_URL) notFound();
+  // RFM is still calculated over the whole database, so it stays with users who may see every webshop.
+  if (!(await requireTenantManager(session))) notFound();
 
   const { config, summary } = await loadRfmResult(session.tenantId);
   if (!config?.customerVisible || !summary) notFound();

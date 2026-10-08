@@ -113,12 +113,12 @@ function loadClients(search: string) {
   return getPrismaClient().tenant.findMany({
     where: search ? { name: { contains: search, mode: "insensitive" } } : undefined,
     include: {
-      users: { where: { role: "CUSTOMER" }, take: 1 },
+      users: { where: { role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, take: 1 },
       _count: { select: { campaigns: true } },
       copernica: true,
       selections: {
         where: { enabled: true },
-        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 3 } },
+        include: { snapshots: { where: { scope: "all" }, orderBy: { measuredAt: "desc" }, take: 3 } },
         orderBy: { name: "asc" },
       },
     },

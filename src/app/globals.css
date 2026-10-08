@@ -29,7 +29,12 @@ button { cursor: pointer; }
 .button-primary { background: linear-gradient(135deg, var(--primary), var(--primary-strong)); color: white; box-shadow: 0 10px 28px rgba(124, 109, 242, .28); }
 .button-secondary { background: rgba(255,255,255,.05); border-color: var(--border); color: var(--text); }
 .button-ghost { border-color: var(--border); background: transparent; color: var(--text); }
-.topbar-actions { display: flex; align-items: center; gap: .6rem; }
+.topbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.webshop-switcher { display: inline-flex; align-items: center; gap: .45rem; min-height: 40px; padding: 0 .4rem 0 .7rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--accent); font-size: .85rem; font-weight: 700; }
+.webshop-switcher select { min-height: 34px; padding: 0 .4rem; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.webshop-switcher select option { background: var(--panel-strong); color: var(--text); }
+.webshop-switcher-fixed span { padding-right: .4rem; color: var(--text); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .theme-toggle { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); }
 .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
@@ -448,6 +453,8 @@ td { color: #dfe9f5; }
 .history-errors ul { margin: .4rem 0 0; padding-left: 1.1rem; font-size: .8rem; }
 .history-mapping select { width: 100%; min-width: 180px; min-height: 36px; padding: 0 .55rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-strong); color: var(--text); }
 .history-mapping tr.is-skipped td:not(:last-child) { color: var(--muted); text-decoration: line-through; }
+.history-scope { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; font-size: .85rem; font-weight: 700; }
+.history-scope select { min-height: 38px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-strong); color: var(--text); }
 .history-note { margin: 0; color: var(--muted); font-size: .82rem; }
 .history-follow { display: flex; align-items: center; gap: .55rem; font-size: .85rem; cursor: pointer; }
 .history-follow input { width: 17px; height: 17px; accent-color: var(--accent); }
@@ -491,6 +498,22 @@ td { color: #dfe9f5; }
 .explain-card dt { color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .explain-card dd { margin: .2rem 0 0; font-size: .88rem; line-height: 1.6; }
 .explain-link { color: var(--accent); font-size: .85rem; font-weight: 700; }
+.admin-scope { margin-bottom: 1rem; }
+.admin-webshops, .admin-users { display: grid; gap: 1rem; justify-items: start; }
+.admin-webshop-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .8rem; width: 100%; }
+.admin-webshop { display: grid; gap: .45rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; }
+.admin-webshop-head { display: flex; align-items: center; gap: .5rem; color: var(--accent); }
+.admin-webshop-head strong { color: var(--text); }
+.admin-webshop p { margin: 0; font-size: .82rem; overflow-wrap: anywhere; }
+.admin-webshop p span { color: var(--muted); }
+.admin-webshop-actions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .3rem; }
+.admin-webshop-actions .button { min-height: 32px; padding: .3rem .7rem; font-size: .78rem; }
+.webshop-samples { display: grid; gap: .4rem; }
+.webshop-samples > div { display: flex; flex-wrap: wrap; gap: .35rem; }
+.admin-users .table-wrap { width: 100%; }
+.admin-user-email { display: block; color: var(--muted); font-size: .75rem; }
+.admin-user-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
+.admin-user-actions .button { min-height: 32px; padding: .3rem .7rem; font-size: .78rem; }
 .rfm-meta { margin: 0 0 1rem; color: var(--muted); font-size: .82rem; }
 .rfm-intro { max-width: 760px; color: var(--muted); line-height: 1.6; }
 .rfm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
@@ -604,7 +627,7 @@ td { color: #dfe9f5; }
 :root[data-theme="light"] .auth-form input, :root[data-theme="light"] .customer-form input, :root[data-theme="light"] .search-box input { background: #fff; color: var(--text); }
 :root[data-theme="light"] .button-secondary { background: #fff; }
 :root[data-theme="light"] .customer-dialog { background: #fff; }
-:root[data-theme="light"] .selection-savebar, :root[data-theme="light"] .widget-dialog-form select, :root[data-theme="light"] .history-mapping select, :root[data-theme="light"] .rfm-setup select, :root[data-theme="light"] .rfm-setup input:not([type="checkbox"]) { background: #fff; }
+:root[data-theme="light"] .selection-savebar, :root[data-theme="light"] .widget-dialog-form select, :root[data-theme="light"] .webshop-switcher, :root[data-theme="light"] .webshop-switcher select option, :root[data-theme="light"] .history-mapping select, :root[data-theme="light"] .rfm-setup select, :root[data-theme="light"] .rfm-setup input:not([type="checkbox"]) { background: #fff; }
 :root[data-theme="light"] .customer-dialog::backdrop { background: rgba(21, 39, 56, .38); }
 :root[data-theme="light"] .logout-button { color: #56677b; }
 :root[data-theme="light"] .nav-item { color: #5b6b7e; }

@@ -13,15 +13,17 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String        @id @default(cuid())
+  email        String        @unique
   name         String
-  role         Role     @default(CUSTOMER)
+  role         Role          @default(CUSTOMER)
   tenantId     String?
-  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  allWebshops  Boolean       @default(true)
+  webshops     UserWebshop[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([tenantId])
 }
@@ -42,6 +44,7 @@ model Tenant {
   rfmConfig    RfmConfig?
   rfmScores    RfmProfileScore[]
   rfmSnapshots RfmSegmentSnapshot[]
+  webshops     Webshop[]
 }
 
 model Campaign {
@@ -91,12 +94,14 @@ model CopernicaSelection {
 model SelectionSnapshot {
   id           String             @id @default(cuid())
   selectionId  String
+  /// "all" for the whole database, otherwise a Webshop id.
+  scope        String             @default("all")
   measuredAt   DateTime           @default(now())
   profileCount Int
   selection    CopernicaSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
 
-  @@unique([selectionId, measuredAt])
-  @@index([selectionId, measuredAt])
+  @@unique([selectionId, scope, measuredAt])
+  @@index([selectionId, scope, measuredAt])
 }
 
 model RfmConfig {
@@ -157,4 +162,31 @@ model RfmSegmentSnapshot {
 
   @@unique([tenantId, measuredAt, segment])
   @@index([tenantId, measuredAt])
+}
+
+model Webshop {
+  id            String        @id @default(cuid())
+  tenantId      String
+  name          String
+  profileField  String
+  fieldValues   String[]      @default([])
+  campaignTerms String[]      @default([])
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users         UserWebshop[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model UserWebshop {
+  userId    String
+  webshopId String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  webshop   Webshop @relation(fields: [webshopId], references: [id], onDelete: Cascade)
+
+  @@id([userId, webshopId])
+  @@index([webshopId])
 }

@@ -30,7 +30,7 @@ const toneClass: Record<Tone, string> = {
   empty: "selection-widget-delta-empty",
 };
 
-export function SelectionWidgetGrid({ widgets }: { widgets: SelectionWidgetData[] }) {
+export function SelectionWidgetGrid({ widgets, canEdit = true }: { widgets: SelectionWidgetData[]; canEdit?: boolean }) {
   const [orderIds, setOrderIds] = useState(() => widgets.map((widget) => widget.id));
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragHandleId, setDragHandleId] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export function SelectionWidgetGrid({ widgets }: { widgets: SelectionWidgetData[
         {order.map((widget, index) => (
           <article
             className={`panel selection-widget${draggingId === widget.id ? " is-dragging" : ""}`}
-            draggable={dragHandleId === widget.id}
+            draggable={canEdit && dragHandleId === widget.id}
             key={widget.id}
             onDragEnd={() => { setDraggingId(null); setDragHandleId(null); }}
             onDragOver={(event) => { if (draggingId && draggingId !== widget.id) event.preventDefault(); }}
@@ -98,7 +98,7 @@ export function SelectionWidgetGrid({ widgets }: { widgets: SelectionWidgetData[
           >
             <div className="selection-widget-top">
               <p className="eyebrow">Copernica-selectie</p>
-              <div className="selection-widget-tools">
+              {canEdit ? <div className="selection-widget-tools">
                 <button aria-label={`${widget.name} aanpassen`} className="widget-tool" onClick={() => setEditingId(widget.id)} type="button"><Pencil size={14} /></button>
                 <button
                   aria-label={`${widget.name} verplaatsen. Gebruik de pijltoetsen.`}
@@ -111,7 +111,7 @@ export function SelectionWidgetGrid({ widgets }: { widgets: SelectionWidgetData[
                   onPointerUp={() => setDragHandleId(null)}
                   type="button"
                 ><GripVertical size={15} /></button>
-              </div>
+              </div> : null}
             </div>
             <h2 className="selection-widget-name">{widget.name}</h2>
             <strong className="selection-widget-value">{widget.value}</strong>

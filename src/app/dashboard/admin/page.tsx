@@ -47,7 +47,7 @@ function loadSummary() {
     prisma.campaign.count(),
     prisma.tenant.findMany({
       include: {
-        users: { where: { role: "CUSTOMER" }, take: 1 },
+        users: { where: { role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, take: 1 },
         copernica: true,
         _count: { select: { campaigns: true } },
       },

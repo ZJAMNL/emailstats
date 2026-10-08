@@ -4,6 +4,8 @@ import { signOutAction, stopImpersonationAction } from "@/app/actions";
 import { getSession } from "@/lib/session";
 import { isRfmVisibleToCustomer } from "@/lib/rfm/history";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
+import { canManageTenant, getCustomerScope } from "@/lib/webshops";
+import { WebshopSwitcher } from "@/components/webshop-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function DashboardShell({
@@ -21,6 +23,10 @@ export async function DashboardShell({
   const modules = role === "customer" && session?.tenantId && process.env.DATABASE_URL
     ? await getTenantDashboardModules(session.tenantId).catch(() => null)
     : null;
+  const scopeInfo = role === "customer" && session?.tenantId && process.env.DATABASE_URL
+    ? await getCustomerScope(session).catch(() => null)
+    : null;
+  const canManage = scopeInfo ? canManageTenant(scopeInfo.allowed) : true;
   const showRfm = role === "customer" && session?.tenantId && process.env.DATABASE_URL
     ? await isRfmVisibleToCustomer(session.tenantId).catch(() => false)
     : false;
@@ -28,9 +34,9 @@ export async function DashboardShell({
     { href: role === "admin" ? "/dashboard/admin" : "/dashboard/customer", label: "Overzicht", icon: LayoutDashboard },
     { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Beheer", icon: role === "admin" ? Users : Database },
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
-    ...(showRfm ? [{ href: "/dashboard/customer/rfm", label: "RFM-model", icon: Gem }] : []),
+    ...(showRfm && canManage ? [{ href: "/dashboard/customer/rfm", label: "RFM-model", icon: Gem }] : []),
     ...(role === "customer" ? [{ href: "/dashboard/customer/uitleg", label: "Uitleg modellen", icon: BookOpen }] : []),
-  ].filter((link) => link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false);
+  ].filter((link) => (link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false) && (link.href !== "/dashboard/customer/data" || canManage));
 
   return (
     <div className="app-shell">
@@ -55,7 +61,7 @@ export async function DashboardShell({
         {session?.impersonator ? <div className="impersonation-banner" role="status"><span>Je bekijkt dit dashboard als {session.name}. Beheerder: {session.impersonator.name}.</span><form action={stopImpersonationAction}><button className="button button-secondary" type="submit">Terug naar beheer</button></form></div> : null}
         <header className="topbar">
           <div><p className="eyebrow">Dashboard</p><h1>{title}</h1><p className="subtitle">{subtitle}</p></div>
-          <div className="topbar-actions"><ThemeToggle /><div className="status-chip"><span /> Beveiligde omgeving</div></div>
+          <div className="topbar-actions">{scopeInfo?.current && scopeInfo.current.webshop !== null || (scopeInfo?.allowed.length ?? 0) > 1 ? <WebshopSwitcher current={scopeInfo!.current!.id} options={scopeInfo!.allowed.map((option) => ({ id: option.id, name: option.name }))} /> : null}<ThemeToggle /><div className="status-chip"><span /> Beveiligde omgeving</div></div>
         </header>
         {children}
       </main>

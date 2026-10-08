@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowLeft, Database, Eye, Gem, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { impersonateCustomerAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
+import { AdminUsers } from "@/components/admin-users";
+import { AdminWebshops } from "@/components/admin-webshops";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
 import { SelectionHistoryImport } from "@/components/selection-history-import";
@@ -10,12 +12,13 @@ import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
+import { filterCampaigns, getAdminScope, loadWebshops } from "@/lib/webshops";
 
 export const dynamic = "force-dynamic";
 
 type ClientDetailProps = {
   params: Promise<{ tenantId: string }>;
-  searchParams: Promise<{ notice?: string; error?: string }>;
+  searchParams: Promise<{ notice?: string; error?: string; webshop?: string }>;
 };
 
 const selectionColors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", "#4c7878"];
@@ -27,6 +30,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
   const query = await searchParams;
   if (!process.env.DATABASE_URL) notFound();
 
+  const [{ allowed: scopes, current: scope }, webshops] = await Promise.all([getAdminScope(tenantId, query.webshop), loadWebshops(tenantId)]);
   const tenant = await getPrismaClient().tenant.findUnique({
     where: { id: tenantId },
     select: {
@@ -39,7 +43,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       updatedAt: true,
       users: {
         where: { role: "CUSTOMER" },
-        select: { id: true, email: true, name: true, role: true, createdAt: true, updatedAt: true },
+        select: { id: true, email: true, name: true, role: true, allWebshops: true, webshops: { select: { webshopId: true } }, createdAt: true, updatedAt: true },
         orderBy: { createdAt: "asc" },
       },
       copernica: {
@@ -47,7 +51,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       },
       selections: {
         where: { enabled: true },
-        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 90 } },
+        include: { snapshots: { where: { scope: scope.id }, orderBy: { measuredAt: "desc" }, take: 90 } },
         orderBy: { name: "asc" },
       },
       campaigns: {
@@ -61,15 +65,16 @@ export default async function AdminClientDetail({ params, searchParams }: Client
   if (!tenant) notFound();
 
   const dashboardModules = await getTenantDashboardModules(tenant.id);
+  const campaigns = filterCampaigns(tenant.campaigns, scope.webshop);
   const enabledSelections = tenant.selections.filter((selection) => selection.enabled);
-  const totalSent = tenant.campaigns.reduce((total, campaign) => total + campaign.sentCount, 0);
-  const totalOpens = tenant.campaigns.reduce((total, campaign) => total + campaign.openCount, 0);
-  const totalClicks = tenant.campaigns.reduce((total, campaign) => total + campaign.clickCount, 0);
+  const totalSent = campaigns.reduce((total, campaign) => total + campaign.sentCount, 0);
+  const totalOpens = campaigns.reduce((total, campaign) => total + campaign.openCount, 0);
+  const totalClicks = campaigns.reduce((total, campaign) => total + campaign.clickCount, 0);
   const totalProfileMemberships = enabledSelections.reduce((total, selection) => total + (selection.snapshots[0]?.profileCount ?? 0), 0);
   const selectionTrend = buildSelectionTotalSeries(enabledSelections);
 
   const metrics = [
-    { label: "Campagnes in overzicht", value: integerFormat.format(tenant._count.campaigns), delta: "totaal", trend: "flat" as const },
+    { label: "Campagnes in overzicht", value: integerFormat.format(scope.webshop ? campaigns.length : tenant._count.campaigns), delta: scope.webshop ? scope.name : "totaal", trend: "flat" as const },
     { label: "Verzonden", value: integerFormat.format(totalSent), delta: "gesynchroniseerd", trend: "flat" as const },
     { label: "Open rate", value: `${totalSent ? ((totalOpens / totalSent) * 100).toFixed(1) : "0.0"}%`, delta: "gemiddeld", trend: "flat" as const },
     { label: "CTR", value: `${totalSent ? ((totalClicks / totalSent) * 100).toFixed(1) : "0.0"}%`, delta: "gemiddeld", trend: "flat" as const },
@@ -88,6 +93,10 @@ export default async function AdminClientDetail({ params, searchParams }: Client
         {tenant.users[0] && tenant.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-primary" type="submit"><Eye size={16} /> Bekijken als klant</button></form> : null}
       </div>
 
+      {webshops.length ? <nav className="segmented-control admin-scope" aria-label="Gegevens tonen voor">
+        {scopes.map((option) => <Link aria-current={option.id === scope.id ? "page" : undefined} href={option.id === "all" ? `/dashboard/admin/clients/${tenant.id}` : `/dashboard/admin/clients/${tenant.id}?webshop=${option.id}`} key={option.id} scroll={false}>{option.name}</Link>)}
+      </nav> : null}
+
       <section className="client-detail-identity panel">
         <div className="client-logo client-detail-logo">{tenant.logoDataUrl ? <Image src={tenant.logoDataUrl} alt={`${tenant.name} logo`} width={64} height={64} unoptimized /> : <span>{tenant.name.slice(0, 1).toUpperCase()}</span>}</div>
         <div className="client-detail-name"><p className="eyebrow">{tenant.status === "active" ? "Actieve klant" : "Inactieve klant"}</p><h2>{tenant.name}</h2><p>{tenant.slug} · aangemaakt {tenant.createdAt.toLocaleDateString("nl-NL")}</p></div>
@@ -99,7 +108,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       <section className="panel-grid two-columns client-detail-grid">
         <article className="panel">
           <div className="panel-heading"><div><p className="eyebrow">Account</p><h2>Klantlogins</h2></div><ShieldCheck size={19} /></div>
-          {tenant.users.length ? <div className="detail-list">{tenant.users.map((user) => <div key={user.id}><span>{user.name}</span><strong>{user.email}</strong><small>Aangemaakt {user.createdAt.toLocaleDateString("nl-NL")}</small></div>)}</div> : <p className="empty-state">Geen klantlogin ingesteld.</p>}
+          {tenant.users.length ? <div className="detail-list"><div><span>Gebruikers</span><strong>{tenant.users.length}</strong></div><div><span>Hoofdgebruiker</span><strong>{tenant.users[0].email}</strong></div><div><span>Webshops</span><strong>{webshops.length ? webshops.map((webshop) => webshop.name).join(", ") : "Geen (hele database)"}</strong></div><a className="explain-link" href="#gebruikers">Gebruikers beheren →</a></div> : <p className="empty-state">Geen klantlogin ingesteld.</p>}
         </article>
         <article className="panel">
           <div className="panel-heading"><div><p className="eyebrow">Copernica</p><h2>Databaseverbinding</h2></div><Database size={19} /></div>
@@ -117,10 +126,21 @@ export default async function AdminClientDetail({ params, searchParams }: Client
         </form>
       </section>
 
+      <section className="panel table-panel" id="webshops">
+        <div className="panel-heading"><div><p className="eyebrow">Omgevingen</p><h2>Webshops in deze database</h2></div><span className="tab">{webshops.length}</span></div>
+        <p className="tenant-boundary">Splits de database op een profielveld in afzonderlijke webshops. De klant kiest na het inloggen welke webshop hij bekijkt; per gebruiker bepaal je hieronder welke webshops hij mag zien.</p>
+        <AdminWebshops connected={Boolean(tenant.copernica)} tenantId={tenant.id} webshops={webshops} />
+      </section>
+
+      <section className="panel table-panel" id="gebruikers">
+        <div className="panel-heading"><div><p className="eyebrow">Toegang</p><h2>Gebruikers van deze klant</h2></div><span className="tab">{tenant.users.length}</span></div>
+        <AdminUsers tenantId={tenant.id} users={tenant.users.map((user) => ({ id: user.id, name: user.name, email: user.email, allWebshops: user.allWebshops, webshopIds: user.webshops.map((link) => link.webshopId), createdAt: user.createdAt.toISOString() }))} webshops={webshops.map((webshop) => ({ id: webshop.id, name: webshop.name }))} />
+      </section>
+
       <section className="panel table-panel">
         <div className="panel-heading"><div><p className="eyebrow">Historische data</p><h2>Selectiehistorie importeren</h2></div></div>
         <p className="tenant-boundary">Voeg eerdere profielaantallen toe vanuit een CSV-bestand. Je ziet eerst een voorbeeld; er wordt pas iets opgeslagen als je bevestigt.</p>
-        <SelectionHistoryImport tenantId={tenant.id} />
+        <SelectionHistoryImport tenantId={tenant.id} webshops={webshops.map((webshop) => ({ id: webshop.id, name: webshop.name }))} />
       </section>
 
       <section className="panel table-panel">
@@ -145,7 +165,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
 
       <section className="panel table-panel">
         <div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Gesynchroniseerde mailings</h2></div><span className="tab">{integerFormat.format(tenant._count.campaigns)} totaal</span></div>
-        {tenant.campaigns.length ? <><div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Openingen</th><th>Klikken</th><th>CTR</th></tr></thead><tbody>{tenant.campaigns.map((campaign) => <tr key={campaign.id}><td><span className="campaign-detail-name"><Mail size={15} />{campaign.name}</span></td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "—"}</td><td>{integerFormat.format(campaign.sentCount)}</td><td>{integerFormat.format(campaign.openCount)}</td><td>{integerFormat.format(campaign.clickCount)}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "—"}</td></tr>)}</tbody></table></div>{tenant._count.campaigns > tenant.campaigns.length ? <p className="tenant-boundary">Toont de {integerFormat.format(tenant.campaigns.length)} recentste campagnes van {integerFormat.format(tenant._count.campaigns)}.</p> : null}</> : <p className="empty-state">Nog geen campagnes gesynchroniseerd.</p>}
+        {campaigns.length ? <><div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Openingen</th><th>Klikken</th><th>CTR</th></tr></thead><tbody>{campaigns.map((campaign) => <tr key={campaign.id}><td><span className="campaign-detail-name"><Mail size={15} />{campaign.name}</span></td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "—"}</td><td>{integerFormat.format(campaign.sentCount)}</td><td>{integerFormat.format(campaign.openCount)}</td><td>{integerFormat.format(campaign.clickCount)}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "—"}</td></tr>)}</tbody></table></div>{!scope.webshop && tenant._count.campaigns > campaigns.length ? <p className="tenant-boundary">Toont de {integerFormat.format(campaigns.length)} recentste campagnes van {integerFormat.format(tenant._count.campaigns)}.</p> : null}</> : <p className="empty-state">Nog geen campagnes gesynchroniseerd.</p>}
       </section>
     </DashboardShell>
   );
