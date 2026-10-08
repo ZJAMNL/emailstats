@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
 import { PerformanceChart } from "@/components/performance-chart";
@@ -8,8 +9,23 @@ import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
-export default async function CustomerDashboard() {
+const comparePeriods = {
+  dag: { label: "Dag", days: 1, since: "gisteren" },
+  week: { label: "Week", days: 7, since: "vorige week" },
+  maand: { label: "Maand", days: 30, since: "vorige maand" },
+  jaar: { label: "Jaar", days: 365, since: "vorig jaar" },
+} as const;
+type ComparePeriod = keyof typeof comparePeriods;
+const dayMs = 24 * 60 * 60 * 1000;
+
+type CustomerDashboardProps = {
+  searchParams: Promise<{ vergelijk?: string }>;
+};
+
+export default async function CustomerDashboard({ searchParams }: CustomerDashboardProps) {
   const session = await requireRole("customer");
+  const { vergelijk } = await searchParams;
+  const period: ComparePeriod = vergelijk && vergelijk in comparePeriods ? vergelijk as ComparePeriod : "dag";
   let tenant: Awaited<ReturnType<typeof loadTenant>> = null;
   let databaseUnavailable = false;
 
@@ -34,7 +50,6 @@ export default async function CustomerDashboard() {
   const visibleCampaigns = dashboardModules.campaignStats ? campaigns : [];
   const selections = dashboardModules.databaseStats ? tenant?.selections ?? [] : [];
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
-  const previousSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[1]?.profileCount ?? latestSelectionCount(selection);
   const totalSelectedProfiles = selections.reduce((total, selection) => total + latestSelectionCount(selection), 0);
   const profileTrend = buildSelectionTotalSeries(selections);
   const metrics = [
@@ -69,15 +84,22 @@ export default async function CustomerDashboard() {
             <a className="button button-secondary" href="/dashboard/customer/data">Selecties beheren</a>
           </article>
         </section>
+        <div className="selection-compare-bar">
+          <p>Verschil ten opzichte van</p>
+          <nav className="segmented-control" aria-label="Vergelijkingsperiode">
+            {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => <Link aria-current={key === period ? "page" : undefined} href={key === "dag" ? "/dashboard/customer" : `/dashboard/customer?vergelijk=${key}`} key={key} scroll={false}>{comparePeriods[key].label}</Link>)}
+          </nav>
+        </div>
         <section className="selection-widget-grid" aria-label="Profielaantallen per selectie">
           {selections.map((selection) => {
             const current = latestSelectionCount(selection);
-            const previous = previousSelectionCount(selection);
-            const delta = current - previous;
+            const comparison = compareSnapshot(selection.snapshots, comparePeriods[period].days);
+            const delta = comparison ? current - comparison.profileCount : null;
+            const percentage = comparison && comparison.profileCount ? (delta! / comparison.profileCount) * 100 : null;
             return <article className="panel selection-widget" key={selection.id}>
               <div className="panel-heading"><div><p className="eyebrow">Copernica-selectie</p><h2>{selection.name}</h2></div><span className="selection-widget-dot" /></div>
               <strong className="selection-widget-value">{current.toLocaleString("nl-NL")}</strong>
-              <p className={delta < 0 ? "trend-down selection-widget-delta" : "trend-up selection-widget-delta"}>{delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL")} sinds vorige meting</p>
+              {delta === null ? <p className="selection-widget-delta selection-widget-delta-empty">Nog geen meting van {comparePeriods[period].since}</p> : <p className={`selection-widget-delta ${delta < 0 ? "trend-down" : delta > 0 ? "trend-up" : "trend-flat"}`}>{delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL")}{percentage !== null ? ` (${delta > 0 ? "+" : ""}${percentage.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%)` : ""} sinds {comparison!.approximate ? comparison!.measuredAt.toLocaleDateString("nl-NL") : comparePeriods[period].since}</p>}
               <small className="selection-widget-date">{selection.snapshots[0] ? `Laatst gemeten ${selection.snapshots[0].measuredAt.toLocaleDateString("nl-NL")}` : "Nog geen meting"}</small>
             </article>;
           })}
@@ -101,7 +123,7 @@ function loadTenant(tenantId: string) {
       },
       selections: {
         where: { enabled: true },
-        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 90 } },
+        include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 400 } },
         orderBy: { name: "asc" },
       },
     },
@@ -128,10 +150,22 @@ function buildMonthlySeries(campaigns: NonNullable<Awaited<ReturnType<typeof loa
   return months;
 }
 
+function compareSnapshot(snapshots: Array<{ measuredAt: Date; profileCount: number }>, days: number) {
+  const latest = snapshots[0];
+  if (!latest) return null;
+  const target = latest.measuredAt.getTime() - days * dayMs;
+  const match = snapshots.find((snapshot) => snapshot.measuredAt.getTime() <= target);
+  if (!match) return null;
+  // Snapshots can be missing on some days; flag comparisons that land more than a day before the target.
+  return { ...match, approximate: target - match.measuredAt.getTime() > dayMs };
+}
+
 function buildSelectionTotalSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"]) {
   const totals = new Map<string, number>();
+  const chartStart = Date.now() - 90 * dayMs;
   for (const selection of selections) {
     for (const snapshot of selection.snapshots) {
+      if (snapshot.measuredAt.getTime() < chartStart) continue;
       const date = snapshot.measuredAt.toISOString().slice(0, 10);
       totals.set(date, (totals.get(date) ?? 0) + snapshot.profileCount);
     }
