@@ -514,6 +514,8 @@ td { color: #dfe9f5; }
 .admin-user-email { display: block; color: var(--muted); font-size: .75rem; }
 .admin-user-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
 .admin-user-actions .button { min-height: 32px; padding: .3rem .7rem; font-size: .78rem; }
+.rfm-writeback { display: grid; gap: .9rem; }
+.rfm-writeback code { font-size: .8rem; }
 .rfm-meta { margin: 0 0 1rem; color: var(--muted); font-size: .82rem; }
 .rfm-intro { max-width: 760px; color: var(--muted); line-height: 1.6; }
 .rfm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }

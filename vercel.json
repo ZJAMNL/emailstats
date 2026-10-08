@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/copernica",
       "schedule": "17 4 * * *"
+    },
+    {
+      "path": "/api/cron/rfm",
+      "schedule": "0 5 * * *"
     }
   ]
 }

@@ -82,6 +82,25 @@ export async function copernicaGet<T>(jwt: string, path: string, params?: URLSea
   return response.json() as Promise<T>;
 }
 
+export class CopernicaError extends Error {
+  constructor(public status: number) {
+    super(`Copernica request failed (${status}).`);
+  }
+}
+
+/** POST or PUT a JSON body. Copernica answers writes with 201/204 and often no body. */
+export async function copernicaSend(jwt: string, method: "POST" | "PUT", path: string, body: Record<string, unknown>) {
+  const response = await fetch(`${COPERNICA_API_URL}/${path.replace(/^\//, "")}`, {
+    method,
+    headers: { Authorization: `Bearer ${jwt}`, Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new CopernicaError(response.status);
+  return response.headers.get("X-Created") ?? response.headers.get("Location");
+}
+
 export async function listCopernicaViews(apiToken: string, databaseId: string) {
   const jwt = await getCopernicaJwt(apiToken);
   return listCopernicaViewsWithJwt(jwt, databaseId);

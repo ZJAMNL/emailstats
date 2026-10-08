@@ -45,6 +45,7 @@ model Tenant {
   rfmScores    RfmProfileScore[]
   rfmSnapshots RfmSegmentSnapshot[]
   webshops     Webshop[]
+  rfmWrites    RfmWriteBack[]
 }
 
 model Campaign {
@@ -122,6 +123,8 @@ model RfmConfig {
   lastRunAt           DateTime?
   lastRunStatus       String?
   lastRunSummary      Json?
+  lastWriteAt         DateTime?
+  lastWriteSummary    Json?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -189,4 +192,15 @@ model UserWebshop {
 
   @@id([userId, webshopId])
   @@index([webshopId])
+}
+
+/// What was last written to each Copernica profile, so only changes are sent and drop-outs can be cleared.
+model RfmWriteBack {
+  tenantId           String
+  copernicaProfileId String
+  hash               String
+  writtenAt          DateTime
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, copernicaProfileId])
 }

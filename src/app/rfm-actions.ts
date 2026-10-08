@@ -6,6 +6,8 @@ import { getPrismaClient } from "@/lib/prisma";
 import { listCollectionFields, listCollections, sampleOrders } from "@/lib/rfm/copernica-orders";
 import { calculateRfm, runRfm, type RfmModelSettings, type RfmRunSummary } from "@/lib/rfm/run";
 import { requireRole } from "@/lib/session";
+import { CopernicaError } from "@/lib/copernica";
+import { ensureRfmFields, writeRfmToCopernica, type WriteBackSummary } from "@/lib/rfm/writeback";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -110,4 +112,37 @@ function validateSettings(input: RfmModelSettings): RfmModelSettings | null {
     frequencyThresholds: ascending ? thresholds : [1, 2, 3, 4, 5],
     marginPercent: Math.min(100, Math.max(1, Math.round(Number(input.marginPercent) || 100))),
   };
+}
+
+// ---------------------------------------------------------------- write-back to Copernica
+
+export async function rfmEnsureFieldsAction(tenantId: string): Promise<Result<{ created: string[]; existing: string[] }>> {
+  await requireRole("admin");
+  try {
+    const result = await ensureRfmFields(tenantId);
+    refresh();
+    return { ok: true, data: result };
+  } catch (error) {
+    if (error instanceof CopernicaError && (error.status === 401 || error.status === 403)) return { ok: false, error: "Copernica weigert het aanmaken: het API-token van deze klant heeft geen schrijfrechten." };
+    return { ok: false, error: "De velden konden niet worden aangemaakt. Controleer de Copernica-koppeling." };
+  }
+}
+
+export async function rfmWriteBackSettingAction(tenantId: string, enabled: boolean): Promise<Result<null>> {
+  await requireRole("admin");
+  await getPrismaClient().rfmConfig.update({ where: { tenantId }, data: { writeBackEnabled: enabled === true } });
+  refresh();
+  return { ok: true, data: null };
+}
+
+export async function rfmWriteBackNowAction(tenantId: string): Promise<Result<WriteBackSummary>> {
+  await requireRole("admin");
+  try {
+    // Leave headroom under the page's 300-second limit; the rest follows on the next run.
+    const summary = await writeRfmToCopernica(tenantId, Date.now() + 240_000);
+    refresh();
+    return summary.error ? { ok: false, error: summary.error } : { ok: true, data: summary };
+  } catch {
+    return { ok: false, error: "Terugschrijven is mislukt. Controleer de Copernica-koppeling." };
+  }
 }
