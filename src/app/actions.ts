@@ -8,6 +8,7 @@ import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
+import { sendDemoRequest } from "@/lib/demo-request";
 import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
 import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
 import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
@@ -191,6 +192,35 @@ export async function requestPasswordResetAction(formData: FormData) {
   }
 
   redirect("/wachtwoord-vergeten?verstuurd=1");
+}
+
+export type DemoRequestState = { status: "idle" | "sent" | "error"; message?: string; fieldErrors?: Record<string, string>; values?: Record<string, string> };
+
+export async function requestDemoAction(_previous: DemoRequestState, formData: FormData): Promise<DemoRequestState> {
+  const startedAt = Number(readField(formData, "startedAt"));
+  const request = {
+    name: readField(formData, "name").slice(0, 120),
+    company: readField(formData, "company").slice(0, 160),
+    email: readField(formData, "email").toLowerCase().slice(0, 254),
+    phone: readField(formData, "phone").slice(0, 40),
+    usesCopernica: readField(formData, "usesCopernica"),
+    message: readField(formData, "message").slice(0, 2000),
+  };
+  const values = { ...request, startedAt: String(startedAt) };
+  const fieldErrors: Record<string, string> = {};
+  if (!request.name) fieldErrors.name = "Vul je naam in.";
+  if (!request.company) fieldErrors.company = "Vul je bedrijfsnaam in.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(request.email)) fieldErrors.email = "Vul een geldig e-mailadres in.";
+  if (Object.keys(fieldErrors).length) return { status: "error", message: "Controleer de gemarkeerde velden.", fieldErrors, values };
+  // Bots fill the hidden field or submit a complete form within seconds; pretend success so they learn nothing.
+  if (readField(formData, "website") || !startedAt || Date.now() - startedAt < 3000) return { status: "sent" };
+
+  try {
+    await sendDemoRequest(request);
+  } catch {
+    return { status: "error", message: "Je aanvraag kon niet worden verstuurd. Probeer het later opnieuw.", values };
+  }
+  return { status: "sent" };
 }
 
 export async function setPasswordAction(formData: FormData) {
