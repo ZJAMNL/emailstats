@@ -7,7 +7,7 @@ import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
-import { saveTenantDashboardModules } from "@/lib/tenant-settings";
+import { saveSelectionRatio, saveTenantDashboardModules } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
   return signInDemoAccount(formData);
@@ -214,6 +214,22 @@ export async function updateCopernicaSelectionsAction(formData: FormData) {
   }
 
   redirect("/dashboard/customer/data?notice=selections-saved");
+}
+
+export async function updateSelectionRatioAction(formData: FormData) {
+  const session = await requireRole("customer");
+  const selectionId = readField(formData, "selectionId");
+  const baseSelectionId = readField(formData, "baseSelectionId") || null;
+  const period = readField(formData, "period");
+  const returnTo = period && period !== "dag" ? `/dashboard/customer?vergelijk=${encodeURIComponent(period)}` : "/dashboard/customer";
+
+  try {
+    await saveSelectionRatio(session.tenantId, selectionId, baseSelectionId);
+  } catch {
+    redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=ratio-failed`);
+  }
+
+  redirect(returnTo);
 }
 
 export async function syncCopernicaNowAction() {

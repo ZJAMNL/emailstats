@@ -5,7 +5,8 @@ import { PerformanceChart } from "@/components/performance-chart";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { readTenantDashboardModules } from "@/lib/tenant-settings";
+import { updateSelectionRatioAction } from "@/app/actions";
+import { readSelectionRatios, readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,12 @@ type ComparePeriod = keyof typeof comparePeriods;
 const dayMs = 24 * 60 * 60 * 1000;
 
 type CustomerDashboardProps = {
-  searchParams: Promise<{ vergelijk?: string }>;
+  searchParams: Promise<{ vergelijk?: string; error?: string }>;
 };
 
 export default async function CustomerDashboard({ searchParams }: CustomerDashboardProps) {
   const session = await requireRole("customer");
-  const { vergelijk } = await searchParams;
+  const { vergelijk, error } = await searchParams;
   const period: ComparePeriod = vergelijk && vergelijk in comparePeriods ? vergelijk as ComparePeriod : "dag";
   let tenant: Awaited<ReturnType<typeof loadTenant>> = null;
   let databaseUnavailable = false;
@@ -49,6 +50,8 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const dashboardModules = readTenantDashboardModules(tenant?.settings);
   const visibleCampaigns = dashboardModules.campaignStats ? campaigns : [];
   const selections = dashboardModules.databaseStats ? tenant?.selections ?? [] : [];
+  const selectionRatios = readSelectionRatios(tenant?.settings);
+  const selectionsById = new Map(selections.map((selection) => [selection.id, selection]));
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
   const totalSelectedProfiles = selections.reduce((total, selection) => total + latestSelectionCount(selection), 0);
   const profileTrend = buildSelectionTotalSeries(selections);
@@ -61,6 +64,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
 
   return (
     <DashboardShell role="customer" title={tenant?.name ?? session.name} subtitle="Je e-mailcampagnes en prestaties uit Copernica.">
+      {error === "ratio-failed" ? <p className="form-error" role="alert">De vergelijking is niet opgeslagen. Probeer het opnieuw.</p> : null}
       {databaseUnavailable ? <p className="form-error" role="status">De klantdatabase is nog niet geconfigureerd. Vraag de beheerder om PostgreSQL in te stellen en te migreren.</p> : null}
       {dashboardModules.campaignStats ? <>
         <MetricsGrid metrics={metrics} />
@@ -96,10 +100,36 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
             const comparison = compareSnapshot(selection.snapshots, comparePeriods[period].days);
             const delta = comparison ? current - comparison.profileCount : null;
             const percentage = comparison && comparison.profileCount ? (delta! / comparison.profileCount) * 100 : null;
+            const base = selectionsById.get(selectionRatios[selection.id] ?? "");
+            const ratio = base ? selectionRatio(selection.snapshots, base.snapshots, 0) : null;
             return <article className="panel selection-widget" key={selection.id}>
               <div className="panel-heading"><div><p className="eyebrow">Copernica-selectie</p><h2>{selection.name}</h2></div><span className="selection-widget-dot" /></div>
               <strong className="selection-widget-value">{current.toLocaleString("nl-NL")}</strong>
               {delta === null ? <p className="selection-widget-delta selection-widget-delta-empty">Nog geen meting van {comparePeriods[period].since}</p> : <p className={`selection-widget-delta ${delta < 0 ? "trend-down" : delta > 0 ? "trend-up" : "trend-flat"}`}>{delta > 0 ? "+" : ""}{delta.toLocaleString("nl-NL")}{percentage !== null ? ` (${delta > 0 ? "+" : ""}${percentage.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%)` : ""} sinds {comparison!.approximate ? comparison!.measuredAt.toLocaleDateString("nl-NL") : comparePeriods[period].since}</p>}
+              {base ? <div className="ratio-block">
+                <p className="ratio-headline"><strong>{ratio === null ? "—" : formatPercent(ratio)}</strong> van {base.name}</p>
+                <dl className="ratio-periods" aria-label={`Verschil in procentpunten ten opzichte van ${base.name}`}>
+                  {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => {
+                    const past = ratio === null ? null : selectionRatio(selection.snapshots, base.snapshots, comparePeriods[key].days);
+                    const points = past === null || ratio === null ? null : ratio - past;
+                    return <div className={key === period ? "is-active" : undefined} key={key}><dt>{comparePeriods[key].label}</dt><dd className={points === null ? "" : points > 0.05 ? "trend-up" : points < -0.05 ? "trend-down" : "trend-flat"}>{points === null ? "—" : `${points > 0 ? "+" : ""}${points.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pt`}</dd></div>;
+                  })}
+                </dl>
+              </div> : null}
+              <details className="ratio-config">
+                <summary>{base ? "Vergelijking aanpassen" : "Vergelijk met andere selectie"}</summary>
+                <form action={updateSelectionRatioAction}>
+                  <input name="selectionId" type="hidden" value={selection.id} />
+                  <input name="period" type="hidden" value={period} />
+                  <label>Toon als percentage van
+                    <select defaultValue={base?.id ?? ""} name="baseSelectionId">
+                      <option value="">Geen vergelijking</option>
+                      {selections.filter((option) => option.id !== selection.id).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                    </select>
+                  </label>
+                  <button className="button button-secondary" type="submit">Opslaan</button>
+                </form>
+              </details>
               <small className="selection-widget-date">{selection.snapshots[0] ? `Laatst gemeten ${selection.snapshots[0].measuredAt.toLocaleDateString("nl-NL")}` : "Nog geen meting"}</small>
             </article>;
           })}
@@ -158,6 +188,27 @@ function compareSnapshot(snapshots: Array<{ measuredAt: Date; profileCount: numb
   if (!match) return null;
   // Snapshots can be missing on some days; flag comparisons that land more than a day before the target.
   return { ...match, approximate: target - match.measuredAt.getTime() > dayMs };
+}
+
+function snapshotOnOrBefore(snapshots: Array<{ measuredAt: Date; profileCount: number }>, time: number) {
+  return snapshots.find((snapshot) => snapshot.measuredAt.getTime() <= time) ?? null;
+}
+
+// Share of `part` in `base` (as a percentage) measured `daysAgo` days before the latest measurement of `part`.
+function selectionRatio(part: Array<{ measuredAt: Date; profileCount: number }>, base: Array<{ measuredAt: Date; profileCount: number }>, daysAgo: number) {
+  const latest = part[0];
+  if (!latest) return null;
+  const target = latest.measuredAt.getTime() - daysAgo * dayMs;
+  const partSnapshot = snapshotOnOrBefore(part, target);
+  const baseSnapshot = snapshotOnOrBefore(base, target);
+  if (!partSnapshot || !baseSnapshot || baseSnapshot.profileCount === 0) return null;
+  // Both measurements must come from roughly the same day to be comparable.
+  if (Math.abs(partSnapshot.measuredAt.getTime() - baseSnapshot.measuredAt.getTime()) > dayMs) return null;
+  return (partSnapshot.profileCount / baseSnapshot.profileCount) * 100;
+}
+
+function formatPercent(value: number) {
+  return `${value.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 function buildSelectionTotalSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"]) {

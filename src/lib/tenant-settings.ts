@@ -37,6 +37,31 @@ export async function saveTenantDashboardModules(tenantId: string, modules: Tena
   });
 }
 
+export type SelectionRatios = Record<string, string>;
+
+export function readSelectionRatios(value: unknown): SelectionRatios {
+  const ratios = asRecord(asRecord(value).selectionRatios);
+  return Object.fromEntries(Object.entries(ratios).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+}
+
+export async function saveSelectionRatio(tenantId: string, selectionId: string, baseSelectionId: string | null) {
+  const prisma = getPrismaClient();
+  const ids = baseSelectionId ? [selectionId, baseSelectionId] : [selectionId];
+  const [tenant, ownedSelections] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } }),
+    prisma.copernicaSelection.count({ where: { tenantId, id: { in: ids } } }),
+  ]);
+  if (!tenant) throw new Error("Tenant not found.");
+  if (ownedSelections !== new Set(ids).size || selectionId === baseSelectionId) throw new Error("Invalid selection.");
+
+  const settings = asRecord(tenant.settings);
+  const ratios = { ...readSelectionRatios(settings) };
+  if (baseSelectionId) ratios[selectionId] = baseSelectionId;
+  else delete ratios[selectionId];
+
+  await prisma.tenant.update({ where: { id: tenantId }, data: { settings: { ...settings, selectionRatios: ratios } } });
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
