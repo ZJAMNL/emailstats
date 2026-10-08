@@ -68,7 +68,6 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const totalSelections = orderedSelections.filter((selection) => !excludedFromTotal.has(selection.id));
   const totalSeries = totalSelections.map((selection, index) => ({ id: selection.id, name: displayName(selection), color: chartColors[index % chartColors.length] }));
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
-  const totalSelectedProfiles = totalSelections.reduce((total, selection) => total + latestSelectionCount(selection), 0);
   const profileTrend = buildSelectionSeries(totalSelections, chartRanges[chartRange].days);
   const dashboardHref = (next: { period?: ComparePeriod; range?: ChartRange }) => {
     const params = new URLSearchParams();
@@ -114,8 +113,11 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
       lastMeasured: selection.snapshots[0] ? `Laatst gemeten ${selection.snapshots[0].measuredAt.toLocaleDateString("nl-NL")}` : "Nog geen meting",
       baseSelectionId: base?.id ?? null,
       includeInTotal: !excludedFromTotal.has(selection.id),
+      isPrimaryTotal: selection.id === widgetSettings.primaryTotalId,
     };
   });
+  const primaryTotal = selectionWidgets.find((widget) => widget.isPrimaryTotal) ?? null;
+  const toneClass = { up: "trend-up", down: "trend-down", flat: "trend-flat", empty: "selection-widget-delta-empty" } as const;
   const metrics = [
     { label: "Verzonden e-mails", value: sent.toLocaleString("nl-NL"), delta: "totaal", trend: "flat" as const },
     { label: "Open rate", value: `${openRate.toFixed(1)}%`, delta: "gemiddeld", trend: "flat" as const },
@@ -137,12 +139,16 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
       {selections.length > 0 ? <>
         <section className="panel-grid two-columns selection-overview-grid">
           <article className="panel selection-total-panel">
-            <div className="panel-heading"><div><p className="eyebrow">Profieldata</p><h2>Totaal van getoonde selecties</h2></div><span className="tab">{totalSelections.length} van {selections.length} selecties</span></div>
+            <div className="panel-heading"><div><p className="eyebrow">Profieldata</p><h2>Overzicht selecties</h2></div><span className="tab">{totalSelections.length} van {selections.length} in grafiek</span></div>
+            {primaryTotal ? <div className="selection-total-headline">
+              <span>{primaryTotal.name}</span>
+              <strong className="selection-total-value">{primaryTotal.value}</strong>
+              <p className={`selection-widget-delta ${toneClass[primaryTotal.delta.tone]}`}>{primaryTotal.delta.text}</p>
+            </div> : <p className="selection-total-hint">Kies via het potlood in een selectiewidget welk aantal hier als hoofdtotaal staat.</p>}
             <nav className="segmented-control selection-range-control" aria-label="Periode van de grafiek">
               {(Object.keys(chartRanges) as ChartRange[]).map((key) => <Link aria-current={key === chartRange ? "page" : undefined} href={dashboardHref({ range: key })} key={key} scroll={false}>{chartRanges[key].label}</Link>)}
             </nav>
-            <strong className="selection-total-value">{totalSelectedProfiles.toLocaleString("nl-NL")}</strong>
-            <SelectionTrendChart data={profileTrend} selections={totalSeries} />
+            <SelectionTrendChart data={profileTrend} selections={totalSeries} storageKey={`customer-chart-hidden:${session.tenantId}`} />
           </article>
           <article className="panel selection-overview-note">
             <div className="panel-heading"><div><p className="eyebrow">Volgen</p><h2>Jouw selecties</h2></div></div>

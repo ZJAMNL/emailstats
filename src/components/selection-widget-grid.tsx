@@ -20,6 +20,7 @@ export type SelectionWidgetData = {
   lastMeasured: string;
   baseSelectionId: string | null;
   includeInTotal: boolean;
+  isPrimaryTotal: boolean;
 };
 
 const toneClass: Record<Tone, string> = {
@@ -121,7 +122,7 @@ export function SelectionWidgetGrid({ widgets }: { widgets: SelectionWidgetData[
                 {widget.ratio.periods.map((item) => <div className={item.active ? "is-active" : undefined} key={item.key}><dt>{item.label}</dt><dd className={item.tone === "empty" ? "" : toneClass[item.tone]}>{item.text}</dd></div>)}
               </dl>
             </div> : null}
-            <small className="selection-widget-date">{widget.lastMeasured}{widget.includeInTotal ? "" : " · niet in totaal"}</small>
+            <small className="selection-widget-date">{widget.lastMeasured}{widget.isPrimaryTotal ? " · hoofdtotaal" : ""}{widget.includeInTotal ? "" : " · niet in grafiek"}</small>
           </article>
         ))}
       </section>
@@ -152,8 +153,12 @@ export function SelectionWidgetGrid({ widgets }: { widgets: SelectionWidgetData[
             <small>Toont deze selectie als percentage van de gekozen selectie, met het verschil per dag, week, maand en jaar.</small>
           </label>
           <label className="widget-dialog-check">
+            <input defaultChecked={editing.isPrimaryTotal} name="isPrimaryTotal" type="checkbox" />
+            <span>Gebruik als hoofdtotaal bovenaan<small>Het aantal van deze selectie staat als groot getal boven de grafiek. Er is één hoofdtotaal; een andere keuze vervangt de huidige.</small></span>
+          </label>
+          <label className="widget-dialog-check">
             <input defaultChecked={editing.includeInTotal} name="includeInTotal" type="checkbox" />
-            <span>Meetellen in het totaal<small>De aantallen van deze selectie tellen mee in het totaalgetal en de grote grafiek bovenaan.</small></span>
+            <span>Tonen in de grote grafiek<small>Deze selectie krijgt een eigen lijn in de grafiek bovenaan.</small></span>
           </label>
           <div className="widget-dialog-position">
             <span>Positie {editingIndex + 1} van {order.length}</span>

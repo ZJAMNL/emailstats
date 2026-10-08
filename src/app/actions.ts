@@ -250,6 +250,7 @@ export async function updateSelectionWidgetAction(formData: FormData) {
       label: readField(formData, "label"),
       baseSelectionId: readField(formData, "baseSelectionId") || null,
       includeInTotal: formData.get("includeInTotal") === "on",
+      isPrimaryTotal: formData.get("isPrimaryTotal") === "on",
     });
   } catch {
     return { ok: false };

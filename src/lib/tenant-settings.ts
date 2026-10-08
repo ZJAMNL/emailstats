@@ -48,6 +48,7 @@ export type SelectionWidgetSettings = {
   order: string[];
   labels: Record<string, string>;
   excludedFromTotal: string[];
+  primaryTotalId: string | null;
 };
 
 export function readSelectionWidgetSettings(value: unknown): SelectionWidgetSettings {
@@ -57,6 +58,7 @@ export function readSelectionWidgetSettings(value: unknown): SelectionWidgetSett
     order: strings(widgets.order),
     labels: Object.fromEntries(Object.entries(asRecord(widgets.labels)).filter((entry): entry is [string, string] => typeof entry[1] === "string")),
     excludedFromTotal: strings(widgets.excludedFromTotal),
+    primaryTotalId: typeof widgets.primaryTotalId === "string" ? widgets.primaryTotalId : null,
   };
 }
 
@@ -81,7 +83,7 @@ export async function saveSelectionWidgetOrder(tenantId: string, order: string[]
 export async function saveSelectionWidget(
   tenantId: string,
   selectionId: string,
-  widget: { label: string; baseSelectionId: string | null; includeInTotal: boolean },
+  widget: { label: string; baseSelectionId: string | null; includeInTotal: boolean; isPrimaryTotal: boolean },
 ) {
   const prisma = getPrismaClient();
   const ids = widget.baseSelectionId ? [selectionId, widget.baseSelectionId] : [selectionId];
@@ -111,7 +113,12 @@ export async function saveSelectionWidget(
       settings: {
         ...settings,
         selectionRatios: ratios,
-        selectionWidgets: { ...widgets, labels, excludedFromTotal: [...excluded] },
+        selectionWidgets: {
+          ...widgets,
+          labels,
+          excludedFromTotal: [...excluded],
+          primaryTotalId: widget.isPrimaryTotal ? selectionId : widgets.primaryTotalId === selectionId ? null : widgets.primaryTotalId,
+        },
       },
     },
   });
