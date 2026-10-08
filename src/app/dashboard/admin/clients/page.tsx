@@ -1,8 +1,7 @@
-import { ArrowRight, Database, Eye, Mail, Pencil, Search, Trash2 } from "lucide-react";
+import { Database, Mail, Search } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { deleteCustomerAction, impersonateCustomerAction, updateCustomerAction } from "@/app/actions";
+import { ClientEditDialog } from "@/components/client-edit-dialog";
 import { CreateCustomerDialog } from "@/components/create-customer-dialog";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -63,37 +62,26 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
 
       <section className="client-grid" aria-label="Klanten">
         {clients.map((client) => {
-          const customer = client.users[0];
           const modules = readTenantDashboardModules(client.settings);
           return (
-            <article key={client.id} className="client-card">
-              <Link className="client-card-summary" href={`/dashboard/admin/clients/${client.id}`} aria-label={`Bekijk alle gegevens van ${client.name}`}>
-                <div className="client-card-header"><div className="client-brand"><div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div><div><p className="eyebrow">{client.status === "active" ? "Actieve klant" : "Inactieve klant"}</p><h3>{client.name}</h3></div></div><span className={`status-badge ${client.status === "active" ? "status-good" : "status-wachtend"}`}>{client.status === "active" ? "Actief" : "Inactief"}</span></div>
-                <dl><div><dt>Login</dt><dd>{customer?.email ?? "Geen klantlogin"}</dd></div><div><dt>Campagnes</dt><dd>{client._count.campaigns}</dd></div><div><dt>Copernica-database</dt><dd>{client.copernica?.databaseId ?? "Niet gekoppeld"}</dd></div><div><dt>Selecties volgen</dt><dd>{client.selections.length}</dd></div></dl>
-                <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database {modules.databaseStats ? "aan" : "uit"}</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail {modules.campaignStats ? "aan" : "uit"}</span></div>
-                {client.selections.length ? <div className="admin-selection-overview" aria-label={`Gevolgde selecties van ${client.name}`}>{client.selections.map((selection) => <div key={selection.id}><span>{selection.name}</span><strong>{selection.snapshots[0]?.profileCount.toLocaleString("nl-NL") ?? "—"}</strong></div>)}</div> : null}
-                <div className="client-card-footer"><span><Database size={15} />{client.copernica ? `Laatste sync ${client.copernica.lastSyncedAt?.toLocaleString("nl-NL") ?? "nog niet"}` : "Geen Copernica-koppeling"}</span><span className="client-detail-link">Alle klantgegevens <ArrowRight size={15} /></span></div>
-              </Link>
-              <details className="client-actions"><summary><Pencil size={15} /> Klant bewerken</summary>
-                <form action={updateCustomerAction} className="customer-form">
-                  <input type="hidden" name="tenantId" value={client.id} />
-                  <label>Bedrijfsnaam<input name="name" defaultValue={client.name} maxLength={120} required /></label>
-                  {customer ? <label>Inlog-e-mailadres<input name="email" type="email" defaultValue={customer.email} maxLength={254} required /></label> : <p>Voor deze klant bestaat nog geen klantlogin.</p>}
-                  <label>Logo uploaden<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPEG of WebP · maximaal 512 KB</small></label>
-                  <fieldset className="module-toggle-group">
-                    <legend>Widgets op het klantdashboard</legend>
-                    <label><input name="databaseStats" type="checkbox" defaultChecked={modules.databaseStats} /> Database- en selectiestatistieken</label>
-                    <label><input name="campaignStats" type="checkbox" defaultChecked={modules.campaignStats} /> E-mailcampagnestatistieken</label>
-                  </fieldset>
-                  {client.logoDataUrl ? <label className="remove-logo"><input name="removeLogo" type="checkbox" /> Huidig logo verwijderen</label> : null}
-                  <button className="button button-secondary" type="submit">Wijzigingen opslaan</button>
-                </form>
-                {customer && client.status === "active" ? <form action={impersonateCustomerAction} className="impersonate-form"><input type="hidden" name="tenantId" value={client.id} /><button className="button button-secondary" type="submit"><Eye size={15} /> Bekijken als klant</button></form> : null}
-                <form action={deleteCustomerAction} className="delete-customer-form">
-                  <input type="hidden" name="tenantId" value={client.id} />
-                  <button className="button button-danger" type="submit"><Trash2 size={15} /> Klant verwijderen</button>
-                </form>
-              </details>
+            <article key={client.id} className="client-card client-widget">
+              <div className="client-widget-header">
+                <div className="client-logo client-widget-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={56} height={56} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div>
+                <div className="client-widget-title"><h3>{client.name}</h3>{client.status !== "active" ? <span className="status-badge status-wachtend">Inactief</span> : null}</div>
+              </div>
+              <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span></div>
+              <ClientEditDialog client={{
+                id: client.id,
+                name: client.name,
+                status: client.status,
+                logoDataUrl: client.logoDataUrl,
+                customerEmail: client.users[0]?.email ?? null,
+                campaignCount: client._count.campaigns,
+                copernicaDatabaseId: client.copernica?.databaseId ?? null,
+                lastSyncedAt: client.copernica?.lastSyncedAt?.toISOString() ?? null,
+                selections: client.selections.map((selection) => ({ id: selection.id, name: selection.name, profileCount: selection.snapshots[0]?.profileCount ?? null })),
+                modules,
+              }} />
             </article>
           );
         })}
