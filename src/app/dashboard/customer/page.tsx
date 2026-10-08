@@ -18,6 +18,7 @@ const comparePeriods = {
 } as const;
 type ComparePeriod = keyof typeof comparePeriods;
 const dayMs = 24 * 60 * 60 * 1000;
+const chartColors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", "#4c7878", "#a8456b", "#5f7a2e"];
 
 type CustomerDashboardProps = {
   searchParams: Promise<{ vergelijk?: string }>;
@@ -56,10 +57,11 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const selectionsById = new Map(selections.map((selection) => [selection.id, selection]));
   const displayName = (selection: (typeof selections)[number]) => widgetSettings.labels[selection.id] ?? selection.name;
   const orderedSelections = sortByOrder(selections, widgetSettings.order);
-  const totalSelections = selections.filter((selection) => !excludedFromTotal.has(selection.id));
+  const totalSelections = orderedSelections.filter((selection) => !excludedFromTotal.has(selection.id));
+  const totalSeries = totalSelections.map((selection, index) => ({ id: selection.id, name: displayName(selection), color: chartColors[index % chartColors.length] }));
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
   const totalSelectedProfiles = totalSelections.reduce((total, selection) => total + latestSelectionCount(selection), 0);
-  const profileTrend = buildSelectionTotalSeries(totalSelections);
+  const profileTrend = buildSelectionSeries(totalSelections);
   const selectionWidgets: SelectionWidgetData[] = orderedSelections.map((selection) => {
     const current = latestSelectionCount(selection);
     const comparison = compareSnapshot(selection.snapshots, comparePeriods[period].days);
@@ -119,10 +121,9 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
       {selections.length > 0 ? <>
         <section className="panel-grid two-columns selection-overview-grid">
           <article className="panel selection-total-panel">
-            <div className="panel-heading"><div><p className="eyebrow">Profieldata</p><h2>Totaal van gevolgde selecties</h2></div><span className="tab">{totalSelections.length} van {selections.length} selecties</span></div>
+            <div className="panel-heading"><div><p className="eyebrow">Profieldata</p><h2>Totaal van getoonde selecties</h2></div><span className="tab">{totalSelections.length} van {selections.length} selecties</span></div>
             <strong className="selection-total-value">{totalSelectedProfiles.toLocaleString("nl-NL")}</strong>
-            <p className="tenant-boundary">Som van de aantallen per selectie. Profielen die in meerdere selecties staan tellen meerdere keren mee.</p>
-            <SelectionTrendChart data={profileTrend} selections={[{ id: "total", name: "Totaal", color: "#237a63" }]} />
+            <SelectionTrendChart data={profileTrend} selections={totalSeries} />
           </article>
           <article className="panel selection-overview-note">
             <div className="panel-heading"><div><p className="eyebrow">Volgen</p><h2>Jouw selecties</h2></div></div>
@@ -219,18 +220,18 @@ function formatPercent(value: number) {
   return `${value.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
-function buildSelectionTotalSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"]) {
-  const totals = new Map<string, number>();
+function buildSelectionSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"]) {
+  const points = new Map<string, { date: string; [selectionId: string]: number | string }>();
   const chartStart = Date.now() - 90 * dayMs;
   for (const selection of selections) {
     for (const snapshot of selection.snapshots) {
       if (snapshot.measuredAt.getTime() < chartStart) continue;
       const date = snapshot.measuredAt.toISOString().slice(0, 10);
-      totals.set(date, (totals.get(date) ?? 0) + snapshot.profileCount);
+      const point = points.get(date) ?? { date };
+      point[selection.id] = snapshot.profileCount;
+      points.set(date, point);
     }
   }
 
-  return [...totals.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, total]) => ({ date, total }));
+  return [...points.values()].sort((left, right) => left.date.localeCompare(right.date));
 }
