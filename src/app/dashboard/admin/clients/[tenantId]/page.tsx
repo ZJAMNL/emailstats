@@ -45,6 +45,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
         select: { databaseId: true, connectedAt: true, lastSyncedAt: true },
       },
       selections: {
+        where: { enabled: true },
         include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 90 } },
         orderBy: { name: "asc" },
       },

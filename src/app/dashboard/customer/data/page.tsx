@@ -1,8 +1,9 @@
 import { Database, RefreshCw, ShieldCheck } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { connectCopernicaAction, syncCopernicaNowAction, updateCopernicaSelectionsAction } from "@/app/actions";
+import { connectCopernicaAction, syncCopernicaNowAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { SelectionPicker } from "@/components/selection-picker";
 import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
@@ -30,15 +31,17 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
   const params = await searchParams;
   let connection: Awaited<ReturnType<typeof loadConnection>> = null;
   let selections: Awaited<ReturnType<typeof loadSelections>> = [];
+  let enabledSelections: Awaited<ReturnType<typeof loadEnabledSelections>> = [];
   let databaseUnavailable = false;
   let databaseStatsEnabled = true;
 
   if (process.env.DATABASE_URL) {
     try {
       let settings: unknown;
-      [connection, selections, settings] = await Promise.all([
+      [connection, selections, enabledSelections, settings] = await Promise.all([
         loadConnection(session.tenantId),
         loadSelections(session.tenantId),
+        loadEnabledSelections(session.tenantId),
         getPrismaClient().tenant.findUnique({ where: { id: session.tenantId }, select: { settings: true } }).then((tenant) => tenant?.settings),
       ]);
       databaseStatsEnabled = readTenantDashboardModules(settings).databaseStats;
@@ -49,7 +52,7 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
     databaseUnavailable = true;
   }
 
-  const enabledSelections = selections.filter((selection) => selection.enabled);
+  const enabledById = new Map(enabledSelections.map((selection) => [selection.id, selection]));
 
   return (
     <DashboardShell role="customer" title="Copernica-data" subtitle="Koppel je database en kies welke selecties je wilt volgen.">
@@ -75,10 +78,13 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
       {connection && databaseStatsEnabled ? <>
         <section className="panel table-panel">
           <div className="panel-heading"><div><p className="eyebrow">Databaseselecties</p><h2>Kies selecties om te volgen</h2></div><span className="tab">{enabledSelections.length} gekozen</span></div>
-          {selections.length === 0 ? <p className="empty-state">Nog geen Copernica-views gevonden. Werk de verbinding bij om de selecties op te halen.</p> : <form action={updateCopernicaSelectionsAction}>
-            <div className="selection-list">{selections.map((selection) => <label className="selection-option" key={selection.id}><span><input type="checkbox" name="selectionId" value={selection.id} defaultChecked={selection.enabled} /><strong>{selection.name}</strong></span><small>{selection.snapshots[0]?.profileCount.toLocaleString("nl-NL") ?? "Nog geen meting"}</small></label>)}</div>
-            <button className="button button-secondary" type="submit">Selecties opslaan</button>
-          </form>}
+          {selections.length === 0 ? <p className="empty-state">Nog geen Copernica-views gevonden. Werk de verbinding bij om de selecties op te halen.</p> : <SelectionPicker options={selections.map((selection) => ({
+            id: selection.id,
+            copernicaId: selection.copernicaId,
+            name: selection.name,
+            enabled: selection.enabled,
+            profileCount: enabledById.get(selection.id)?.snapshots[0]?.profileCount ?? null,
+          }))} />}
         </section>
 
         <section className="panel table-panel">
@@ -97,7 +103,15 @@ function loadConnection(tenantId: string) {
 function loadSelections(tenantId: string) {
   return getPrismaClient().copernicaSelection.findMany({
     where: { tenantId },
-    include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 90 } },
+    select: { id: true, copernicaId: true, name: true, enabled: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+function loadEnabledSelections(tenantId: string) {
+  return getPrismaClient().copernicaSelection.findMany({
+    where: { tenantId, enabled: true },
+    include: { snapshots: { orderBy: { measuredAt: "desc" }, take: 1 } },
     orderBy: { name: "asc" },
   });
 }

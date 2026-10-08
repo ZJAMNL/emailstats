@@ -272,6 +272,31 @@ td { color: #dfe9f5; }
 .selection-option strong { overflow-wrap: anywhere; }
 .selection-option input { width: 17px; height: 17px; accent-color: var(--accent); }
 .selection-option small { flex: 0 0 auto; color: var(--muted); }
+.selection-picker { display: grid; gap: 1rem; }
+.selection-picker-chosen { display: flex; flex-wrap: wrap; gap: .45rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.selection-picker-hint { margin: 0; color: var(--muted); font-size: .85rem; }
+.selection-chip { display: inline-flex; align-items: center; gap: .45rem; padding: .3rem .35rem .3rem .7rem; border: 1px solid rgba(76,201,167,.3); border-radius: 999px; background: rgba(76,201,167,.08); font-size: .8rem; font-weight: 700; }
+.selection-chip small { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.selection-chip button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.selection-chip button:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.selection-picker-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; }
+.selection-search { display: flex; flex: 1 1 280px; align-items: center; gap: .55rem; min-height: 42px; padding: 0 .8rem; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.03); color: var(--muted); }
+.selection-search:focus-within { border-color: var(--accent); }
+.selection-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--text); }
+.selection-only-selected { display: flex; align-items: center; gap: .5rem; color: var(--muted); font-size: .85rem; cursor: pointer; }
+.selection-only-selected input, .selection-results input { width: 17px; height: 17px; accent-color: var(--accent); }
+.selection-groups { display: flex; flex-wrap: wrap; gap: .35rem; }
+.selection-group { padding: .3rem .65rem; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted); font-size: .76rem; font-weight: 700; cursor: pointer; }
+.selection-group small { margin-left: .2rem; font-weight: 500; opacity: .75; }
+.selection-group:hover { color: var(--text); }
+.selection-group[aria-pressed="true"] { border-color: rgba(76,201,167,.45); background: rgba(76,201,167,.1); color: var(--accent); }
+.selection-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.25rem; margin: 0; padding: 0; list-style: none; }
+.selection-results label { display: flex; align-items: center; gap: .65rem; padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: .88rem; cursor: pointer; }
+.selection-results label > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.selection-results label small { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.selection-more { justify-self: center; }
+.selection-savebar { position: sticky; bottom: 1rem; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1rem; border: 1px solid rgba(76,201,167,.35); border-radius: 12px; background: var(--panel-strong); box-shadow: var(--shadow); font-size: .85rem; }
+.selection-savebar > div { display: flex; gap: .5rem; }
 .module-settings-form { display: grid; gap: .25rem; }
 .module-settings-form > .button { justify-self: start; margin-top: .85rem; }
 .module-setting-option { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -373,7 +398,7 @@ td { color: #dfe9f5; }
   .top-nav nav { width: 100%; justify-content: space-between; }
   .hero { padding-top: 1rem; }
   .feature-grid, .metric-grid { grid-template-columns: 1fr; }
-  .customer-form, .client-actions .customer-form, .customer-dialog-form, .campaign-date-form, .selection-list, .selection-summary { grid-template-columns: 1fr; }
+  .customer-form, .client-actions .customer-form, .customer-dialog-form, .campaign-date-form, .selection-list, .selection-results, .selection-summary { grid-template-columns: 1fr; }
   .customer-dialog-actions { flex-direction: column-reverse; }
   .customer-dialog-actions .button { width: 100%; }
   .toolbar, .panel-heading { align-items: flex-start; flex-direction: column; }
