@@ -27,18 +27,21 @@ model User {
 }
 
 model Tenant {
-  id          String               @id @default(cuid())
-  name        String
-  slug        String               @unique
-  logoDataUrl String?              @db.Text
-  status      String               @default("active")
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-  settings    Json                 @default("{}")
-  users       User[]
-  campaigns   Campaign[]
-  copernica   CopernicaConnection?
-  selections  CopernicaSelection[]
+  id           String               @id @default(cuid())
+  name         String
+  slug         String               @unique
+  logoDataUrl  String?              @db.Text
+  status       String               @default("active")
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  settings     Json                 @default("{}")
+  users        User[]
+  campaigns    Campaign[]
+  copernica    CopernicaConnection?
+  selections   CopernicaSelection[]
+  rfmConfig    RfmConfig?
+  rfmScores    RfmProfileScore[]
+  rfmSnapshots RfmSegmentSnapshot[]
 }
 
 model Campaign {
@@ -94,4 +97,61 @@ model SelectionSnapshot {
 
   @@unique([selectionId, measuredAt])
   @@index([selectionId, measuredAt])
+}
+
+model RfmConfig {
+  id                  String    @id @default(cuid())
+  tenantId            String    @unique
+  collectionId        String
+  collectionName      String
+  dateField           String
+  amountField         String
+  statusField         String?
+  excludedStatuses    String[]  @default([])
+  windowMonths        Int       @default(24)
+  frequencyThresholds Int[]     @default([1, 2, 3, 4, 5])
+  marginPercent       Int       @default(100)
+  enabled             Boolean   @default(false)
+  customerVisible     Boolean   @default(false)
+  writeBackEnabled    Boolean   @default(false)
+  lastRunAt           DateTime?
+  lastRunStatus       String?
+  lastRunSummary      Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model RfmProfileScore {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  copernicaProfileId String
+  lastOrderAt        DateTime
+  orderCount         Int
+  revenue            Decimal  @db.Decimal(18, 2)
+  r                  Int
+  f                  Int
+  m                  Int
+  segment            String
+  previousSegment    String?
+  monthStartSegment  String?
+  updatedAt          DateTime @updatedAt
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, copernicaProfileId])
+  @@index([tenantId, segment])
+}
+
+model RfmSegmentSnapshot {
+  id         String   @id @default(cuid())
+  tenantId   String
+  measuredAt DateTime
+  segment    String
+  customers  Int
+  orders     Int
+  revenue    Decimal  @db.Decimal(18, 2)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, measuredAt, segment])
+  @@index([tenantId, measuredAt])
 }

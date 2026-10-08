@@ -460,6 +460,62 @@ td { color: #dfe9f5; }
 .chart-legend-swatch { width: 10px; height: 10px; border: 2px solid currentColor; border-radius: 50%; }
 .chart-legend-actions { display: flex; justify-content: center; gap: .75rem; margin-top: .35rem; }
 .chart-legend-actions button { padding: 0; border: 0; background: transparent; color: var(--accent); font-size: .72rem; font-weight: 700; cursor: pointer; }
+.rfm-meta { margin: 0 0 1rem; color: var(--muted); font-size: .82rem; }
+.rfm-intro { max-width: 760px; color: var(--muted); line-height: 1.6; }
+.rfm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.rfm-kpi { display: grid; gap: .35rem; align-content: start; }
+.rfm-kpi span { color: var(--muted); font-size: .78rem; font-weight: 700; }
+.rfm-kpi strong { font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+.rfm-kpi small { color: var(--muted); font-size: .74rem; line-height: 1.45; }
+.rfm-kpi-warning strong { color: #d07a52; }
+.rfm-heatmap { display: grid; grid-template-columns: auto 1fr; gap: .5rem; }
+.rfm-heatmap-ylabel { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; color: var(--muted); font-size: .72rem; }
+.rfm-heatmap-grid { display: grid; gap: 4px; }
+.rfm-heatmap-row { display: grid; grid-template-columns: 34px repeat(5, minmax(0, 1fr)); gap: 4px; }
+.rfm-heatmap-axis { display: grid; place-items: center; color: var(--muted); font-size: .7rem; font-weight: 700; }
+.rfm-heatmap-cell { display: grid; align-content: center; gap: .1rem; min-height: 58px; padding: .35rem; border-radius: 8px; text-align: center; }
+.rfm-heatmap-cell strong { font-size: .95rem; font-variant-numeric: tabular-nums; }
+.rfm-heatmap-cell small { overflow: hidden; color: var(--text); font-size: .62rem; opacity: .8; text-overflow: ellipsis; white-space: nowrap; }
+.rfm-heatmap-xlabel { margin: .25rem 0 0 38px; color: var(--muted); font-size: .72rem; text-align: center; }
+.rfm-table td { vertical-align: top; }
+.rfm-table td small { display: block; color: var(--muted); font-size: .72rem; }
+.rfm-table td em { font-style: normal; }
+.rfm-table td:first-child { min-width: 200px; }
+.rfm-table .rfm-action { min-width: 240px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.rfm-swatch { display: inline-block; width: 10px; height: 10px; margin-right: .45rem; border-radius: 3px; }
+.rfm-shifts { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.rfm-shifts li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .5rem 0; border-bottom: 1px solid var(--border); font-size: .85rem; }
+.rfm-shifts strong { font-variant-numeric: tabular-nums; }
+.rfm-quality { display: grid; gap: .5rem; color: var(--muted); font-size: .85rem; }
+.rfm-quality p { margin: 0; }
+.rfm-quality ul { margin: 0; padding-left: 1.1rem; }
+.rfm-assumptions { font-size: .78rem; line-height: 1.5; }
+.rfm-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.rfm-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5rem; color: var(--muted); font-size: .82rem; }
+.rfm-check { display: inline-flex; align-items: center; gap: .5rem; font-size: .85rem; cursor: pointer; }
+.rfm-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+.rfm-settings summary { color: var(--accent); font-weight: 700; cursor: pointer; }
+.rfm-settings[open] summary { margin-bottom: 1rem; }
+.rfm-setup { display: grid; gap: 1rem; }
+.rfm-steps { display: grid; gap: 1rem; margin: 0; padding: 0; list-style: none; }
+.rfm-steps > li { display: grid; gap: .65rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; }
+.rfm-steps > li.is-disabled { opacity: .55; }
+.rfm-steps h3 { margin: 0; font-size: 1rem; }
+.rfm-steps p { margin: 0; color: var(--muted); font-size: .85rem; }
+.rfm-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.rfm-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .8rem; }
+.rfm-fields label, .rfm-thresholds { display: grid; gap: .35rem; font-size: .8rem; font-weight: 700; }
+.rfm-setup select, .rfm-setup input:not([type="checkbox"]) { min-width: 0; min-height: 40px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-strong); color: var(--text); font-weight: 400; }
+.rfm-setup small { color: var(--muted); font-size: .72rem; font-weight: 400; }
+.rfm-thresholds { grid-column: 1 / -1; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; padding: .75rem; border: 1px solid var(--border); border-radius: 10px; }
+.rfm-thresholds legend { padding: 0 .3rem; color: var(--muted); }
+.rfm-thresholds label { display: grid; gap: .25rem; }
+.rfm-sample p { margin-bottom: .4rem; }
+.rfm-preview { display: grid; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.rfm-preview h3 { margin: 0; }
+.rfm-preview-grid { max-width: 640px; }
+.rfm-hint { color: var(--muted); }
+
 .selection-compare-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; margin-top: 1.25rem; }
 .selection-compare-bar p { margin: 0; color: var(--muted); font-size: .8rem; }
 .segmented-control { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.03); }
@@ -500,7 +556,7 @@ td { color: #dfe9f5; }
 :root[data-theme="light"] .auth-form input, :root[data-theme="light"] .customer-form input, :root[data-theme="light"] .search-box input { background: #fff; color: var(--text); }
 :root[data-theme="light"] .button-secondary { background: #fff; }
 :root[data-theme="light"] .customer-dialog { background: #fff; }
-:root[data-theme="light"] .selection-savebar, :root[data-theme="light"] .widget-dialog-form select, :root[data-theme="light"] .history-mapping select { background: #fff; }
+:root[data-theme="light"] .selection-savebar, :root[data-theme="light"] .widget-dialog-form select, :root[data-theme="light"] .history-mapping select, :root[data-theme="light"] .rfm-setup select, :root[data-theme="light"] .rfm-setup input:not([type="checkbox"]) { background: #fff; }
 :root[data-theme="light"] .customer-dialog::backdrop { background: rgba(21, 39, 56, .38); }
 :root[data-theme="light"] .logout-button { color: #56677b; }
 :root[data-theme="light"] .nav-item { color: #5b6b7e; }

@@ -8,7 +8,7 @@ const COPERNICA_AUTH_URL = "https://authenticate.copernica.com";
 const COPERNICA_API_URL = "https://api.copernica.com/v4";
 const REQUEST_TIMEOUT_MS = 12_000;
 
-type CopernicaList<T> = {
+export type CopernicaList<T> = {
   data: T[];
   total?: number;
 };
@@ -236,7 +236,7 @@ export async function syncTenantCopernicaData(
   return { selectionCount, campaignCount };
 }
 
-async function mapInBatches<T, Result>(items: T[], batchSize: number, callback: (item: T) => Promise<Result>) {
+export async function mapInBatches<T, Result>(items: T[], batchSize: number, callback: (item: T) => Promise<Result>) {
   const results: Result[] = [];
   for (let offset = 0; offset < items.length; offset += batchSize) {
     results.push(...await Promise.all(items.slice(offset, offset + batchSize).map(callback)));

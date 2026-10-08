@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Database, Eye, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Database, Eye, Gem, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { impersonateCustomerAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
 import { DashboardShell } from "@/components/dashboard-shell";
@@ -83,6 +83,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       {query.error === "settings-save-failed" ? <p className="form-error" role="alert">De statistiekinstellingen zijn niet opgeslagen. Probeer het opnieuw.</p> : null}
       <div className="detail-toolbar">
         <Link className="button button-secondary" href="/dashboard/admin/clients"><ArrowLeft size={16} /> Alle klanten</Link>
+        <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/rfm`}><Gem size={16} /> Klantwaarde (RFM)</Link>
         {tenant.users[0] ? <form action={sendLoginLinkAction}><input name="tenantId" type="hidden" value={tenant.id} /><input name="returnTo" type="hidden" value={`/dashboard/admin/clients/${tenant.id}`} /><button className="button button-secondary" type="submit"><KeyRound size={16} /> Inloglink mailen</button></form> : null}
         {tenant.users[0] && tenant.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-primary" type="submit"><Eye size={16} /> Bekijken als klant</button></form> : null}
       </div>
