@@ -1,5 +1,6 @@
 import { getPrismaClient } from "./prisma";
 import { decryptCopernicaToken } from "./copernica-crypto";
+import { getTenantDashboardModules } from "./tenant-settings";
 
 export { decryptCopernicaToken, encryptCopernicaToken } from "./copernica-crypto";
 
@@ -143,84 +144,96 @@ export async function syncTenantCopernicaData(
   range?: { from?: string; to?: string },
 ) {
   const prisma = getPrismaClient();
+  const modules = await getTenantDashboardModules(tenantId);
+  if (!modules.databaseStats && !modules.campaignStats) {
+    return { selectionCount: 0, campaignCount: 0 };
+  }
+
   const connected = await getTenantCopernica(tenantId);
   if (!connected) throw new Error("Deze klant heeft nog geen Copernica-koppeling.");
 
   const { connection, jwt } = connected;
-  const views = await listCopernicaViewsWithJwt(jwt, connection.databaseId);
-  await Promise.all(views.map((view) => prisma.copernicaSelection.upsert({
-    where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } },
-    create: { tenantId, copernicaId: String(view.ID), name: view.name },
-    update: { name: view.name },
-  })));
+  let selectionCount = 0;
+  let campaignCount = 0;
 
-  const enabledSelections = await prisma.copernicaSelection.findMany({
-    where: { tenantId, enabled: true },
-  });
-  const measuredAt = new Date();
-  measuredAt.setUTCHours(0, 0, 0, 0);
-  await Promise.all(enabledSelections.map(async (selection) => {
-    const profileCount = await fetchCopernicaProfileCountWithJwt(jwt, selection.copernicaId);
-    await prisma.selectionSnapshot.upsert({
-      where: { selectionId_measuredAt: { selectionId: selection.id, measuredAt } },
-      create: { selectionId: selection.id, measuredAt, profileCount },
-      update: { profileCount },
+  if (modules.databaseStats) {
+    const views = await listCopernicaViewsWithJwt(jwt, connection.databaseId);
+    await Promise.all(views.map((view) => prisma.copernicaSelection.upsert({
+      where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } },
+      create: { tenantId, copernicaId: String(view.ID), name: view.name },
+      update: { name: view.name },
+    })));
+
+    const enabledSelections = await prisma.copernicaSelection.findMany({ where: { tenantId, enabled: true } });
+    selectionCount = enabledSelections.length;
+    const measuredAt = new Date();
+    measuredAt.setUTCHours(0, 0, 0, 0);
+    await Promise.all(enabledSelections.map(async (selection) => {
+      const profileCount = await fetchCopernicaProfileCountWithJwt(jwt, selection.copernicaId);
+      await prisma.selectionSnapshot.upsert({
+        where: { selectionId_measuredAt: { selectionId: selection.id, measuredAt } },
+        create: { selectionId: selection.id, measuredAt, profileCount },
+        update: { profileCount },
+      });
+    }));
+  }
+
+  if (modules.campaignStats) {
+    const params = new URLSearchParams({ start: "0", limit: "1000", total: "true", type: "mass", followups: "both" });
+    if (range?.from) params.set("fromdate", `${range.from} 00:00:00`);
+    if (range?.to) params.set("todate", `${range.to} 23:59:59`);
+
+    const [htmlMailings, dragMailings] = await Promise.all([
+      copernicaGet<CopernicaList<CopernicaMailing>>(jwt, "html/emailings", params),
+      copernicaGet<CopernicaList<CopernicaMailing>>(jwt, "draganddrop/emailings", params),
+    ]);
+    const scopedMailings = [
+      ...(htmlMailings.data ?? []).map((mailing) => ({ mailing, channel: "html" })),
+      ...(dragMailings.data ?? []).map((mailing) => ({ mailing, channel: "draganddrop" })),
+    ].filter(({ mailing }) => mailing.target?.sources?.some((source) => String(source.id) === connection.databaseId));
+    campaignCount = scopedMailings.length;
+
+    await mapInBatches(scopedMailings, 8, async ({ mailing, channel }) => {
+      const copernicaId = `${channel}:${mailing.id}`;
+      const sentAt = mailing.timestamp ? new Date(mailing.timestamp.replace(" ", "T") + "Z") : null;
+      const stats = await copernicaGet<CopernicaMailingStats>(
+        jwt,
+        `${channel}/emailing/${encodeURIComponent(String(mailing.id))}/statistics`,
+      );
+      const sentCount = countValue(stats.deliveries?.total ?? stats.destinations ?? mailing.destinations);
+      const openCount = countValue(stats.impressions?.total ?? mailing.impressions);
+      const clickCount = countValue(stats.clicks?.total ?? mailing.clicks);
+
+      await prisma.campaign.upsert({
+        where: { tenantId_copernicaId: { tenantId, copernicaId } },
+        create: {
+          tenantId,
+          copernicaId,
+          name: mailing.subject || mailing.description || mailing.document_name || `Campagne ${mailing.id}`,
+          status: "SENT",
+          sentCount,
+          openCount,
+          clickCount,
+          revenue: 0,
+          sentAt,
+        },
+        update: {
+          name: mailing.subject || mailing.description || mailing.document_name || `Campagne ${mailing.id}`,
+          sentCount,
+          openCount,
+          clickCount,
+          sentAt,
+        },
+      });
     });
-  }));
-
-  const params = new URLSearchParams({ start: "0", limit: "1000", total: "true", type: "mass", followups: "both" });
-  if (range?.from) params.set("fromdate", `${range.from} 00:00:00`);
-  if (range?.to) params.set("todate", `${range.to} 23:59:59`);
-
-  const [htmlMailings, dragMailings] = await Promise.all([
-    copernicaGet<CopernicaList<CopernicaMailing>>(jwt, "html/emailings", params),
-    copernicaGet<CopernicaList<CopernicaMailing>>(jwt, "draganddrop/emailings", params),
-  ]);
-  const scopedMailings = [
-    ...(htmlMailings.data ?? []).map((mailing) => ({ mailing, channel: "html" })),
-    ...(dragMailings.data ?? []).map((mailing) => ({ mailing, channel: "draganddrop" })),
-  ].filter(({ mailing }) => mailing.target?.sources?.some((source) => String(source.id) === connection.databaseId));
-
-  await mapInBatches(scopedMailings, 8, async ({ mailing, channel }) => {
-    const copernicaId = `${channel}:${mailing.id}`;
-    const sentAt = mailing.timestamp ? new Date(mailing.timestamp.replace(" ", "T") + "Z") : null;
-    const stats = await copernicaGet<CopernicaMailingStats>(
-      jwt,
-      `${channel}/emailing/${encodeURIComponent(String(mailing.id))}/statistics`,
-    );
-    const sentCount = countValue(stats.deliveries?.total ?? stats.destinations ?? mailing.destinations);
-    const openCount = countValue(stats.impressions?.total ?? mailing.impressions);
-    const clickCount = countValue(stats.clicks?.total ?? mailing.clicks);
-
-    await prisma.campaign.upsert({
-      where: { tenantId_copernicaId: { tenantId, copernicaId } },
-      create: {
-        tenantId,
-        copernicaId,
-        name: mailing.subject || mailing.description || mailing.document_name || `Campagne ${mailing.id}`,
-        status: "SENT",
-        sentCount,
-        openCount,
-        clickCount,
-        revenue: 0,
-        sentAt,
-      },
-      update: {
-        name: mailing.subject || mailing.description || mailing.document_name || `Campagne ${mailing.id}`,
-        sentCount,
-        openCount,
-        clickCount,
-        sentAt,
-      },
-    });
-  });
+  }
 
   await prisma.copernicaConnection.update({
     where: { tenantId },
     data: { lastSyncedAt: new Date() },
   });
 
-  return { selectionCount: enabledSelections.length, campaignCount: scopedMailings.length };
+  return { selectionCount, campaignCount };
 }
 
 async function mapInBatches<T, Result>(items: T[], batchSize: number, callback: (item: T) => Promise<Result>) {

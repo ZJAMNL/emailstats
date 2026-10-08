@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/dashboard-shell";
 import { connectCopernicaAction, syncCopernicaNowAction, updateCopernicaSelectionsAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -30,13 +31,17 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
   let connection: Awaited<ReturnType<typeof loadConnection>> = null;
   let selections: Awaited<ReturnType<typeof loadSelections>> = [];
   let databaseUnavailable = false;
+  let databaseStatsEnabled = true;
 
   if (process.env.DATABASE_URL) {
     try {
-      [connection, selections] = await Promise.all([
+      let settings: unknown;
+      [connection, selections, settings] = await Promise.all([
         loadConnection(session.tenantId),
         loadSelections(session.tenantId),
+        getPrismaClient().tenant.findUnique({ where: { id: session.tenantId }, select: { settings: true } }).then((tenant) => tenant?.settings),
       ]);
+      databaseStatsEnabled = readTenantDashboardModules(settings).databaseStats;
     } catch {
       databaseUnavailable = true;
     }
@@ -66,7 +71,8 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
         </form>
       </section>
 
-      {connection ? <>
+      {connection && !databaseStatsEnabled ? <section className="panel table-panel"><p className="empty-state">De beheerder heeft database- en selectiestatistieken voor dit klantaccount uitgeschakeld.</p></section> : null}
+      {connection && databaseStatsEnabled ? <>
         <section className="panel table-panel">
           <div className="panel-heading"><div><p className="eyebrow">Databaseselecties</p><h2>Kies selecties om te volgen</h2></div><span className="tab">{enabledSelections.length} gekozen</span></div>
           {selections.length === 0 ? <p className="empty-state">Nog geen Copernica-views gevonden. Werk de verbinding bij om de selecties op te halen.</p> : <form action={updateCopernicaSelectionsAction}>

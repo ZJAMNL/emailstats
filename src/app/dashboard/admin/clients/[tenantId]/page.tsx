@@ -2,25 +2,28 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Database, Eye, Mail, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
-import { impersonateCustomerAction } from "@/app/actions";
+import { impersonateCustomerAction, updateTenantDashboardModulesAction } from "@/app/actions";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { getTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
 type ClientDetailProps = {
   params: Promise<{ tenantId: string }>;
+  searchParams: Promise<{ notice?: string; error?: string }>;
 };
 
 const selectionColors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", "#4c7878"];
 const integerFormat = new Intl.NumberFormat("nl-NL");
 
-export default async function AdminClientDetail({ params }: ClientDetailProps) {
+export default async function AdminClientDetail({ params, searchParams }: ClientDetailProps) {
   await requireRole("admin");
   const { tenantId } = await params;
+  const query = await searchParams;
   if (!process.env.DATABASE_URL) notFound();
 
   const tenant = await getPrismaClient().tenant.findUnique({
@@ -55,6 +58,7 @@ export default async function AdminClientDetail({ params }: ClientDetailProps) {
 
   if (!tenant) notFound();
 
+  const dashboardModules = await getTenantDashboardModules(tenant.id);
   const enabledSelections = tenant.selections.filter((selection) => selection.enabled);
   const totalSent = tenant.campaigns.reduce((total, campaign) => total + campaign.sentCount, 0);
   const totalOpens = tenant.campaigns.reduce((total, campaign) => total + campaign.openCount, 0);
@@ -71,6 +75,8 @@ export default async function AdminClientDetail({ params }: ClientDetailProps) {
 
   return (
     <DashboardShell role="admin" title={tenant.name} subtitle="Klantdetails, databasekoppeling en prestaties.">
+      {query.notice === "settings-saved" ? <p className="form-success" role="status">De statistiekweergaven voor deze klant zijn bijgewerkt.</p> : null}
+      {query.error === "settings-save-failed" ? <p className="form-error" role="alert">De statistiekinstellingen zijn niet opgeslagen. Probeer het opnieuw.</p> : null}
       <div className="detail-toolbar">
         <Link className="button button-secondary" href="/dashboard/admin/clients"><ArrowLeft size={16} /> Alle klanten</Link>
         {tenant.users[0] && tenant.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-primary" type="submit"><Eye size={16} /> Bekijken als klant</button></form> : null}
@@ -93,6 +99,16 @@ export default async function AdminClientDetail({ params }: ClientDetailProps) {
           <div className="panel-heading"><div><p className="eyebrow">Copernica</p><h2>Databaseverbinding</h2></div><Database size={19} /></div>
           {tenant.copernica ? <div className="detail-list"><div><span>Status</span><strong>Verbonden</strong></div><div><span>Database-ID</span><strong>{tenant.copernica.databaseId}</strong></div><div><span>Verbonden sinds</span><strong>{tenant.copernica.connectedAt.toLocaleString("nl-NL")}</strong></div><div><span>Laatste synchronisatie</span><strong>{tenant.copernica.lastSyncedAt?.toLocaleString("nl-NL") ?? "Nog niet gesynchroniseerd"}</strong></div></div> : <p className="empty-state">Deze klant heeft nog geen Copernica-koppeling.</p>}
         </article>
+      </section>
+
+      <section className="panel table-panel">
+        <div className="panel-heading"><div><p className="eyebrow">Dashboardtoegang</p><h2>Statistieken voor deze klant</h2></div></div>
+        <form action={updateTenantDashboardModulesAction} className="module-settings-form">
+          <input name="tenantId" type="hidden" value={tenant.id} />
+          <label className="module-setting-option"><span><strong>Database- en selectiestatistieken</strong><small>Toon Copernica-profielaantallen en selectie-widgets op het klantdashboard.</small></span><input defaultChecked={dashboardModules.databaseStats} name="databaseStats" type="checkbox" /></label>
+          <label className="module-setting-option"><span><strong>E-mailcampagnestatistieken</strong><small>Toon campagne-KPI’s en campagneoverzichten voor deze klant.</small></span><input defaultChecked={dashboardModules.campaignStats} name="campaignStats" type="checkbox" /></label>
+          <button className="button button-primary" type="submit">Instellingen opslaan</button>
+        </form>
       </section>
 
       <section className="panel table-panel">

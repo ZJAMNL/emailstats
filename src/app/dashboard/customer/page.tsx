@@ -4,6 +4,7 @@ import { PerformanceChart } from "@/components/performance-chart";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,9 @@ export default async function CustomerDashboard() {
   const openRate = sent ? (opens / sent) * 100 : 0;
   const clickRate = sent ? (clicks / sent) * 100 : 0;
   const chartData = buildMonthlySeries(campaigns);
-  const selections = tenant?.selections ?? [];
+  const dashboardModules = readTenantDashboardModules(tenant?.settings);
+  const visibleCampaigns = dashboardModules.campaignStats ? campaigns : [];
+  const selections = dashboardModules.databaseStats ? tenant?.selections ?? [] : [];
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
   const previousSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[1]?.profileCount ?? latestSelectionCount(selection);
   const totalSelectedProfiles = selections.reduce((total, selection) => total + latestSelectionCount(selection), 0);
@@ -44,11 +47,14 @@ export default async function CustomerDashboard() {
   return (
     <DashboardShell role="customer" title={tenant?.name ?? session.name} subtitle="Je e-mailcampagnes en prestaties uit Copernica.">
       {databaseUnavailable ? <p className="form-error" role="status">De klantdatabase is nog niet geconfigureerd. Vraag de beheerder om PostgreSQL in te stellen en te migreren.</p> : null}
-      <MetricsGrid metrics={metrics} />
-      <section className="panel-grid two-columns">
-        <PerformanceChart data={chartData} />
-        <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Databron</p><h2>Copernica-koppeling</h2></div></div><p>{tenant?.copernica ? "Verbonden" : "Nog niet verbonden"}</p><p className="tenant-boundary">De gegevens op dit dashboard zijn alleen voor jouw klantaccount.</p></article>
-      </section>
+      {dashboardModules.campaignStats ? <>
+        <MetricsGrid metrics={metrics} />
+        <section className="panel-grid two-columns">
+          <PerformanceChart data={chartData} />
+          <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Databron</p><h2>Copernica-koppeling</h2></div></div><p>{tenant?.copernica ? "Verbonden" : "Nog niet verbonden"}</p><p className="tenant-boundary">De gegevens op dit dashboard zijn alleen voor jouw klantaccount.</p></article>
+        </section>
+      </> : null}
+      {!dashboardModules.campaignStats && !dashboardModules.databaseStats ? <p className="empty-state">De beheerder heeft de statistiekweergaven voor deze klant uitgeschakeld.</p> : null}
       {selections.length > 0 ? <>
         <section className="panel-grid two-columns selection-overview-grid">
           <article className="panel selection-total-panel">
@@ -77,8 +83,8 @@ export default async function CustomerDashboard() {
           })}
         </section>
       </> : tenant?.copernica ? <section className="panel table-panel selection-empty-panel"><p className="eyebrow">Profieldata</p><h2>Nog geen selecties gekozen</h2><p>Kies in Database welke Copernica-selecties je op dit dashboard wilt volgen.</p><a className="button button-secondary" href="/dashboard/customer/data">Selecties beheren</a></section> : null}
-      {campaigns.length === 0 && !databaseUnavailable ? <section className="panel table-panel"><p className="empty-state">Nog geen campagnes gesynchroniseerd. Koppel Copernica en synchroniseer een periode via Campagnes.</p></section> : null}
-      <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Recent gesynchroniseerd</h2></div><span className="tab">{campaigns.length} campagnes</span></div>{campaigns.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Open rate</th><th>CTR</th></tr></thead><tbody>{campaigns.slice(0, 10).map((campaign) => <tr key={campaign.id}><td>{campaign.name}</td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "-"}</td><td>{campaign.sentCount.toLocaleString("nl-NL")}</td><td>{campaign.sentCount ? `${((campaign.openCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td></tr>)}</tbody></table></div> : null}</section>
+      {dashboardModules.campaignStats && campaigns.length === 0 && !databaseUnavailable ? <section className="panel table-panel"><p className="empty-state">Nog geen campagnes gesynchroniseerd. Koppel Copernica en synchroniseer een periode via Campagnes.</p></section> : null}
+      {dashboardModules.campaignStats ? <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Recent gesynchroniseerd</h2></div><span className="tab">{visibleCampaigns.length} campagnes</span></div>{visibleCampaigns.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Open rate</th><th>CTR</th></tr></thead><tbody>{visibleCampaigns.slice(0, 10).map((campaign) => <tr key={campaign.id}><td>{campaign.name}</td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "-"}</td><td>{campaign.sentCount.toLocaleString("nl-NL")}</td><td>{campaign.sentCount ? `${((campaign.openCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td></tr>)}</tbody></table></div> : null}</section> : null}
       <p className="tenant-boundary">Tenant-id: {session.tenantId}</p>
     </DashboardShell>
   );

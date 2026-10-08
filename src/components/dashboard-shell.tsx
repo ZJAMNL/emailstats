@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BarChart3, Database, LayoutDashboard, LogOut, Mail, ShieldCheck, Users } from "lucide-react";
 import { signOutAction, stopImpersonationAction } from "@/app/actions";
 import { getSession } from "@/lib/session";
+import { getTenantDashboardModules } from "@/lib/tenant-settings";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function DashboardShell({
@@ -16,11 +17,14 @@ export async function DashboardShell({
   role: "admin" | "customer";
 }) {
   const session = await getSession();
+  const modules = role === "customer" && session?.tenantId && process.env.DATABASE_URL
+    ? await getTenantDashboardModules(session.tenantId).catch(() => null)
+    : null;
   const links = [
     { href: role === "admin" ? "/dashboard/admin" : "/dashboard/customer", label: "Overzicht", icon: LayoutDashboard },
     { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Database", icon: role === "admin" ? Users : Database },
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
-  ];
+  ].filter((link) => link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false);
 
   return (
     <div className="app-shell">

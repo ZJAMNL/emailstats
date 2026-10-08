@@ -7,6 +7,7 @@ import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
+import { saveTenantDashboardModules } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
   return signInDemoAccount(formData);
@@ -82,7 +83,9 @@ export async function createCustomerAction(formData: FormData) {
     const passwordHash = await hash(password, 12);
 
     await prisma.$transaction(async (transaction) => {
-      const tenant = await transaction.tenant.create({ data: { name, slug, logoDataUrl: logoDataUrl ?? null } });
+      const tenant = await transaction.tenant.create({
+        data: { name, slug, logoDataUrl: logoDataUrl ?? null, settings: { dashboardModules: readDashboardModules(formData) } },
+      });
       await transaction.user.create({
         data: { name, email, passwordHash, tenantId: tenant.id, role: "CUSTOMER" },
       });
@@ -119,6 +122,7 @@ export async function updateCustomerAction(formData: FormData) {
         data: { name, email },
       });
     });
+    await saveTenantDashboardModules(tenantId, readDashboardModules(formData));
   } catch {
     redirect("/dashboard/admin/clients?error=update-customer");
   }
@@ -139,6 +143,20 @@ export async function deleteCustomerAction(formData: FormData) {
   }
 
   redirect("/dashboard/admin/clients?notice=customer-deleted");
+}
+
+export async function updateTenantDashboardModulesAction(formData: FormData) {
+  await requireRole("admin");
+  const tenantId = readField(formData, "tenantId");
+  if (!tenantId) redirect("/dashboard/admin/clients?error=invalid-customer");
+
+  try {
+    await saveTenantDashboardModules(tenantId, readDashboardModules(formData));
+  } catch {
+    redirect(`/dashboard/admin/clients/${encodeURIComponent(tenantId)}?error=settings-save-failed`);
+  }
+
+  redirect(`/dashboard/admin/clients/${encodeURIComponent(tenantId)}?notice=settings-saved`);
 }
 
 export async function connectCopernicaAction(formData: FormData) {
@@ -232,6 +250,13 @@ export async function syncCampaignsAction(formData: FormData) {
 function readField(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function readDashboardModules(formData: FormData) {
+  return {
+    databaseStats: formData.get("databaseStats") === "on",
+    campaignStats: formData.get("campaignStats") === "on",
+  };
 }
 
 async function readLogo(formData: FormData): Promise<string | null | undefined | false> {

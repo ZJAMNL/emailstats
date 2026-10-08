@@ -31,6 +31,11 @@ export function CreateCustomerDialog() {
           <label>Logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPEG of WebP · maximaal 512 KB</small></label>
           <label>Inlog-e-mailadres<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
           <label>Tijdelijk wachtwoord<input name="password" type="password" autoComplete="new-password" minLength={12} required /><small>Minimaal 12 tekens. Deel dit wachtwoord veilig met de klant.</small></label>
+          <fieldset className="module-toggle-group">
+            <legend>Widgets op het klantdashboard</legend>
+            <label><input name="databaseStats" type="checkbox" defaultChecked /> Database- en selectiestatistieken</label>
+            <label><input name="campaignStats" type="checkbox" defaultChecked /> E-mailcampagnestatistieken</label>
+          </fieldset>
           <div className="customer-dialog-actions">
             <button className="button button-secondary" onClick={closeDialog} type="button">Annuleren</button>
             <button className="button button-primary" disabled={!isOpen} type="submit"><Plus size={16} /> Klant aanmaken</button>
