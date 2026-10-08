@@ -22,7 +22,7 @@ export async function DashboardShell({
     : null;
   const links = [
     { href: role === "admin" ? "/dashboard/admin" : "/dashboard/customer", label: "Overzicht", icon: LayoutDashboard },
-    { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Database", icon: role === "admin" ? Users : Database },
+    { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Beheer", icon: role === "admin" ? Users : Database },
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
   ].filter((link) => link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false);
 
