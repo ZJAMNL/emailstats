@@ -1,6 +1,6 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
@@ -8,6 +8,7 @@ import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
+import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
 import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
 import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
 
@@ -71,7 +72,8 @@ export async function createCustomerAction(formData: FormData) {
 
   const name = readField(formData, "name");
   const email = readField(formData, "email").toLowerCase();
-  const password = readField(formData, "password");
+  const sendInvite = formData.get("sendInvite") === "on";
+  const password = readField(formData, "password") || (sendInvite ? `${crypto.randomUUID()}${crypto.randomUUID()}` : "");
   const logoDataUrl = await readLogo(formData);
 
   if (!name || !email.includes("@") || password.length < 12) {
@@ -79,21 +81,31 @@ export async function createCustomerAction(formData: FormData) {
   }
   if (logoDataUrl === false) redirect("/dashboard/admin/clients?error=invalid-logo");
 
+  let createdUser: { id: string; email: string; name: string; passwordHash: string };
   try {
     const prisma = getPrismaClient();
     const slug = `${slugify(name)}-${crypto.randomUUID().slice(0, 8)}`;
     const passwordHash = await hash(password, 12);
 
-    await prisma.$transaction(async (transaction) => {
+    createdUser = await prisma.$transaction(async (transaction) => {
       const tenant = await transaction.tenant.create({
         data: { name, slug, logoDataUrl: logoDataUrl ?? null, settings: { dashboardModules: readDashboardModules(formData) } },
       });
-      await transaction.user.create({
+      return transaction.user.create({
         data: { name, email, passwordHash, tenantId: tenant.id, role: "CUSTOMER" },
       });
     });
   } catch {
     redirect("/dashboard/admin/clients?error=create-customer");
+  }
+
+  if (sendInvite) {
+    try {
+      await sendPasswordMail(createdUser, "invite", await getAppUrl());
+    } catch {
+      redirect("/dashboard/admin/clients?error=invite-failed");
+    }
+    redirect("/dashboard/admin/clients?notice=customer-invited");
   }
 
   redirect("/dashboard/admin/clients?notice=customer-created");
@@ -145,6 +157,56 @@ export async function deleteCustomerAction(formData: FormData) {
   }
 
   redirect("/dashboard/admin/clients?notice=customer-deleted");
+}
+
+export async function sendLoginLinkAction(formData: FormData) {
+  await requireRole("admin");
+  const tenantId = readField(formData, "tenantId");
+  const returnTo = readField(formData, "returnTo").startsWith("/dashboard/admin/") ? readField(formData, "returnTo") : "/dashboard/admin/clients";
+  const separator = returnTo.includes("?") ? "&" : "?";
+
+  try {
+    const user = await getPrismaClient().user.findFirst({ where: { tenantId, role: "CUSTOMER" } });
+    if (!user) throw new Error("No customer login.");
+    await sendPasswordMail(user, "invite", await getAppUrl());
+  } catch {
+    redirect(`${returnTo}${separator}error=login-link-failed`);
+  }
+
+  redirect(`${returnTo}${separator}notice=login-link-sent`);
+}
+
+export async function requestPasswordResetAction(formData: FormData) {
+  const email = readField(formData, "email").toLowerCase();
+
+  if (email.includes("@") && process.env.DATABASE_URL) {
+    try {
+      const user = await getPrismaClient().user.findUnique({ where: { email }, include: { tenant: true } });
+      if (user && (user.role === "ADMIN" || user.tenant?.status === "active")) {
+        await sendPasswordMail(user, "reset", await getAppUrl());
+      }
+    } catch {
+      // Same response whether or not the address exists or mail failed, so accounts can't be enumerated.
+    }
+  }
+
+  redirect("/wachtwoord-vergeten?verstuurd=1");
+}
+
+export async function setPasswordAction(formData: FormData) {
+  const token = readField(formData, "token");
+  const password = String(formData.get("password") ?? "");
+  const confirmation = String(formData.get("confirmation") ?? "");
+  const back = `/wachtwoord-instellen?token=${encodeURIComponent(token)}`;
+
+  if (password.length < 12) redirect(`${back}&error=too-short`);
+  if (password !== confirmation) redirect(`${back}&error=mismatch`);
+
+  const user = await verifyPasswordToken(token);
+  if (!user) redirect("/wachtwoord-instellen?error=invalid-token");
+
+  await getPrismaClient().user.update({ where: { id: user.id }, data: { passwordHash: await hash(password, 12) } });
+  redirect("/login?notice=password-set");
 }
 
 export async function updateTenantDashboardModulesAction(formData: FormData) {
@@ -295,6 +357,16 @@ export async function syncCampaignsAction(formData: FormData) {
   }
 
   redirect(`/dashboard/customer/campaigns?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&notice=synced`);
+}
+
+async function getAppUrl() {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  // Never derive production links from request headers, so a spoofed Host can't end up in a reset mail.
+  if (process.env.VERCEL_ENV === "production") return "https://dashboard.enzo.email";
+  const headerStore = await headers();
+  const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "dashboard.enzo.email";
+  const protocol = headerStore.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${protocol}://${host}`;
 }
 
 function readField(formData: FormData, key: string) {

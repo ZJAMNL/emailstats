@@ -17,6 +17,8 @@ const noticeText: Record<string, string> = {
   "customer-created": "De klant en klantlogin zijn aangemaakt.",
   "customer-updated": "De klantgegevens zijn bijgewerkt.",
   "customer-deleted": "De klant en bijbehorende gegevens zijn verwijderd.",
+  "customer-invited": "De klant is aangemaakt en heeft een e-mail ontvangen om een wachtwoord in te stellen.",
+  "login-link-sent": "De klant heeft een e-mail ontvangen met een link om een wachtwoord in te stellen.",
 };
 
 const errorText: Record<string, string> = {
@@ -25,6 +27,8 @@ const errorText: Record<string, string> = {
   "create-customer": "Aanmaken is niet gelukt. Controleer of het e-mailadres al bestaat en de database bereikbaar is.",
   "update-customer": "Wijzigen is niet gelukt. Controleer of het e-mailadres al door een ander account wordt gebruikt.",
   "delete-customer": "Verwijderen is niet gelukt. Probeer het opnieuw.",
+  "invite-failed": "De klant is aangemaakt, maar de uitnodiging kon niet worden verstuurd. Probeer het opnieuw via Aanpassen → Inloglink mailen.",
+  "login-link-failed": "De inloglink kon niet worden verstuurd. Controleer de Resend-koppeling en probeer het opnieuw.",
   "impersonation-failed": "Deze klant kan niet worden geopend. Controleer of het account actief is.",
 };
 

@@ -3,8 +3,8 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Eye, Pencil, Trash2, X } from "lucide-react";
-import { deleteCustomerAction, impersonateCustomerAction, updateCustomerAction } from "@/app/actions";
+import { ArrowRight, Eye, KeyRound, Pencil, Trash2, X } from "lucide-react";
+import { deleteCustomerAction, impersonateCustomerAction, sendLoginLinkAction, updateCustomerAction } from "@/app/actions";
 import type { TenantDashboardModules } from "@/lib/tenant-settings";
 
 export type ClientEditDialogClient = {
@@ -75,6 +75,7 @@ export function ClientEditDialog({ client }: { client: ClientEditDialogClient })
 
           <div className="client-dialog-footer">
             <Link className="button button-secondary" href={`/dashboard/admin/clients/${client.id}`}>Alle klantgegevens <ArrowRight size={15} /></Link>
+            {client.customerEmail ? <form action={sendLoginLinkAction}><input type="hidden" name="tenantId" value={client.id} /><input type="hidden" name="returnTo" value="/dashboard/admin/clients" /><button className="button button-secondary" type="submit"><KeyRound size={15} /> Inloglink mailen</button></form> : null}
             {client.customerEmail && client.status === "active" ? <form action={impersonateCustomerAction}><input type="hidden" name="tenantId" value={client.id} /><button className="button button-secondary" type="submit"><Eye size={15} /> Bekijken als klant</button></form> : null}
             <form action={deleteCustomerAction} className="client-dialog-delete">
               <input type="hidden" name="tenantId" value={client.id} />

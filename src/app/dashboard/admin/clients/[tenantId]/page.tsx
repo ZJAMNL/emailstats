@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Database, Eye, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Database, Eye, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
-import { impersonateCustomerAction, updateTenantDashboardModulesAction } from "@/app/actions";
+import { impersonateCustomerAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
 import { SelectionHistoryImport } from "@/components/selection-history-import";
@@ -78,9 +78,12 @@ export default async function AdminClientDetail({ params, searchParams }: Client
   return (
     <DashboardShell role="admin" title={tenant.name} subtitle="Klantdetails, databasekoppeling en prestaties.">
       {query.notice === "settings-saved" ? <p className="form-success" role="status">De statistiekweergaven voor deze klant zijn bijgewerkt.</p> : null}
+      {query.notice === "login-link-sent" ? <p className="form-success" role="status">De klant heeft een e-mail ontvangen met een link om een wachtwoord in te stellen.</p> : null}
+      {query.error === "login-link-failed" ? <p className="form-error" role="alert">De inloglink kon niet worden verstuurd. Controleer de Resend-koppeling en probeer het opnieuw.</p> : null}
       {query.error === "settings-save-failed" ? <p className="form-error" role="alert">De statistiekinstellingen zijn niet opgeslagen. Probeer het opnieuw.</p> : null}
       <div className="detail-toolbar">
         <Link className="button button-secondary" href="/dashboard/admin/clients"><ArrowLeft size={16} /> Alle klanten</Link>
+        {tenant.users[0] ? <form action={sendLoginLinkAction}><input name="tenantId" type="hidden" value={tenant.id} /><input name="returnTo" type="hidden" value={`/dashboard/admin/clients/${tenant.id}`} /><button className="button button-secondary" type="submit"><KeyRound size={16} /> Inloglink mailen</button></form> : null}
         {tenant.users[0] && tenant.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-primary" type="submit"><Eye size={16} /> Bekijken als klant</button></form> : null}
       </div>
 
