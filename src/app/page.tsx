@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, BellRing, Database, GitCompareArrows, LineChart, LockKeyhole, MailOpen, MousePointerClick, Plug, ShieldCheck, SlidersHorizontal, Sparkles, Users } from "lucide-react";
+import { BarChart3, BellRing, CalendarRange, Database, Gem, GitCompareArrows, LineChart, LockKeyhole, MailOpen, MousePointerClick, Plug, ShieldCheck, Sparkles, TrendingUp, Users } from "lucide-react";
 import { DemoRequestForm } from "@/components/demo-request-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -12,19 +12,21 @@ const features = [
   { icon: Database, title: "Groei van je database", text: "Volg per selectie hoeveel profielen er zijn en zie per dag, week, maand of jaar wat er veranderd is." },
   { icon: MailOpen, title: "Campagneresultaten", text: "Verzonden e-mails, open rates en click-through rates per mailing, voor elke periode die je kiest." },
   { icon: GitCompareArrows, title: "Verhoudingen die ertoe doen", text: "Zet selecties tegen elkaar af, zoals opt-ins ten opzichte van je totale database, en volg het verloop in procentpunten." },
-  { icon: SlidersHorizontal, title: "Jouw dashboard, jouw indeling", text: "Geef widgets eigen namen, zet ze in je eigen volgorde en kies welke lijnen je in de grafiek wilt zien." },
+  { icon: Gem, title: "RFM-segmenten", text: "Elke klant in een van elf segmenten, van Kampioenen tot Risico, op basis van hoe recent, hoe vaak en voor hoeveel hij kocht. Met een concrete aanpak per segment." },
+  { icon: TrendingUp, title: "Voorspelde klantwaarde", text: "Per klant de verwachte omzet voor de komende twaalf maanden en de kans dat hij nog actief is. Opgeteld: wat je database écht waard is." },
+  { icon: CalendarRange, title: "Cohortanalyse", text: "Volg klanten vanaf hun eerste aankoop: wie komt terug, wat levert een klant op na 3, 6 en 12 maanden, en worden nieuwe klanten beter?" },
 ];
 
 const benefits = [
   { icon: LineChart, title: "Zie trends voordat ze een probleem worden", text: "Een stijgend aantal uitschrijvingen of een dalend opt-inpercentage valt direct op, niet pas bij de kwartaalrapportage." },
   { icon: Users, title: "Praat met cijfers in plaats van gevoel", text: "Iedereen in je team kijkt naar dezelfde actuele aantallen. Geen losse exports en spreadsheets meer." },
-  { icon: MousePointerClick, title: "Weet wat je campagnes opleveren", text: "Vergelijk mailings op bereik en betrokkenheid en ontdek welke onderwerpen je doelgroep echt aanspreken." },
+  { icon: MousePointerClick, title: "Weet wat je database waard is", text: "Niet alleen hoeveel profielen je hebt, maar hoeveel omzet ze de komende twaalf maanden naar verwachting opleveren, en welke klanten je moet terugwinnen." },
   { icon: BellRing, title: "Altijd actueel, zonder handwerk", text: "De cijfers worden elke nacht automatisch bijgewerkt vanuit Copernica. Jij hoeft alleen maar te kijken." },
 ];
 
 const steps = [
   { icon: Plug, title: "Koppelen", text: "We verbinden het dashboard veilig met je Copernica-database. Je API-token wordt versleuteld opgeslagen." },
-  { icon: Sparkles, title: "Kiezen", text: "Je kiest welke selecties en campagnes je wilt volgen en hoe je ze met elkaar wilt vergelijken." },
+  { icon: Sparkles, title: "Kiezen", text: "Je kiest welke selecties en campagnes je wilt volgen. Staan je orders in Copernica, dan rekenen we ook RFM, klantwaarde en cohorten door." },
   { icon: BarChart3, title: "Inzicht", text: "Vanaf dat moment zie je elke dag de ontwikkeling van je database en je e-mailresultaten in één overzicht." },
 ];
 
@@ -47,7 +49,7 @@ export default function Home() {
           <div className="hero-copy">
             <p className="eyebrow">Dashboard voor e-mailmarketing</p>
             <h1>Je e‑mailmarketing in één oogopslag.</h1>
-            <p className="hero-text">Zie hoe je database groeit, hoe je campagnes presteren en hoe belangrijke groepen zich tot elkaar verhouden. Rechtstreeks uit Copernica, elke dag bijgewerkt en overzichtelijk in één dashboard.</p>
+            <p className="hero-text">Zie hoe je database groeit, hoe je campagnes presteren en wat je klanten de komende twaalf maanden waard zijn. Met RFM-segmenten, voorspelde klantwaarde en cohortanalyse, rechtstreeks uit Copernica en elke dag bijgewerkt.</p>
             <div className="hero-actions">
               <a className="button button-primary button-large" href="#demo">Demo aanvragen</a>
               <Link className="button button-secondary button-large" href="/login">Inloggen</Link>
@@ -56,6 +58,7 @@ export default function Home() {
               <li>Dagelijks bijgewerkt</li>
               <li>Alleen jouw eigen data</li>
               <li>Werkt met Copernica</li>
+              <li>Voorspelt klantwaarde</li>
             </ul>
           </div>
           <DashboardPreview />
@@ -64,7 +67,7 @@ export default function Home() {
         <section className="feature-section" id="functies">
           <div className="section-heading">
             <p className="eyebrow">Wat je ziet</p>
-            <h2>Alles wat je wilt weten over je mailings en je database.</h2>
+            <h2>Van je mailings tot de waarde van elke klant.</h2>
           </div>
           <div className="feature-grid">
             {features.map(({ icon: Icon, title, text }) => <article className="feature-card" key={title}><Icon size={24} /><h3>{title}</h3><p>{text}</p></article>)}
@@ -129,7 +132,7 @@ function DashboardPreview() {
   return (
     <div className="hero-visual" aria-label="Voorbeeld van het dashboard" role="img">
       <div className="dashboard-window preview-window">
-        <div className="window-bar"><span /><span /><span /></div>
+        <div className="window-bar"><span /><span /><span /><small className="preview-label">Voorbeeldcijfers</small></div>
         <div className="preview-grid">
           <div className="tile preview-total">
             <span>Databasebeheer</span>
@@ -153,15 +156,18 @@ function DashboardPreview() {
             <div className="preview-ratio"><b>52,4%</b> van Databasebeheer</div>
             <em>+0,8 pt sinds vorig jaar</em>
           </div>
-          <div className="tile">
-            <span>Open rate</span>
-            <strong>38,2%</strong>
-            <div className="preview-bars" aria-hidden="true">{[48, 62, 55, 70, 66, 78, 74].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div>
-            <em>Laatste 7 mailings</em>
+          <div className="tile preview-clv">
+            <span>Databasewaarde</span>
+            <strong>€ 1,24 mln</strong>
+            <div className="preview-ratio"><b>78%</b> van de kopers nog actief</div>
+            <em>Voorspeld, komende 12 maanden</em>
           </div>
-          <div className="tile preview-period">
-            <span>Verschil ten opzichte van</span>
-            <div className="preview-segments"><b>Dag</b><b className="is-active">Week</b><b>Maand</b><b>Jaar</b></div>
+          <div className="tile preview-cohort">
+            <span>Herhaalaankopen na eerste aankoop</span>
+            <div className="preview-cohort-grid" aria-hidden="true">
+              {[[24, 15, 12, 10, 9, 8], [27, 18, 14, 11, 10], [31, 20, 16, 13], [33, 22, 17]].map((row, rowIndex) => <div key={rowIndex}>{row.map((share, index) => <i key={index} style={{ opacity: 0.25 + share / 40 }}>{share}%</i>)}</div>)}
+            </div>
+            <em>Nieuwe klanten komen steeds vaker terug</em>
           </div>
         </div>
       </div>
