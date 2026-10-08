@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signInAction } from "@/app/actions";
 import { getSession } from "@/lib/session";
-import { getDemoAccounts } from "@/lib/demo-auth";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const session = await getSession();
@@ -11,10 +10,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   }
 
   const { error, notice } = await searchParams;
-  const accounts = getDemoAccounts();
 
   return (
-    <main className="auth-page">
+    <main className="auth-page auth-page-single">
       <section className="auth-panel auth-panel-large">
           <div className="auth-header"><span className="brand-mark">E</span><div><p className="eyebrow">E-mail Statistieken</p><h1>Welkom terug</h1></div></div>
         <p className="auth-intro">Log in op je managementomgeving en controleer je e-mailstatistieken.</p>
@@ -27,14 +25,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <Link className="auth-link" href="/wachtwoord-vergeten">Wachtwoord vergeten?</Link>
         </form>
       </section>
-      <aside className="auth-panel auth-panel-small">
-        <p className="eyebrow">Demo-accounts</p>
-        <h2>Ontdek beide rollen</h2>
-        {accounts.map((account) => (
-          <div key={account.email} className="demo-account"><div><strong>{account.name}</strong><span>{account.role === "admin" ? "Beheerder" : "Klant"}</span></div><code>{account.email}</code></div>
-        ))}
-        <p className="demo-note">Wachtwoorden worden alleen lokaal als demo-credentials gebruikt. In productie wordt een veilige identity-provider of passwordless login gebruikt.</p>
-      </aside>
     </main>
   );
 }
