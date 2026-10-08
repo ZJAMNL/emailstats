@@ -44,22 +44,77 @@ export function readSelectionRatios(value: unknown): SelectionRatios {
   return Object.fromEntries(Object.entries(ratios).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 }
 
-export async function saveSelectionRatio(tenantId: string, selectionId: string, baseSelectionId: string | null) {
+export type SelectionWidgetSettings = {
+  order: string[];
+  labels: Record<string, string>;
+  excludedFromTotal: string[];
+};
+
+export function readSelectionWidgetSettings(value: unknown): SelectionWidgetSettings {
+  const widgets = asRecord(asRecord(value).selectionWidgets);
+  const strings = (input: unknown) => Array.isArray(input) ? input.filter((item): item is string => typeof item === "string") : [];
+  return {
+    order: strings(widgets.order),
+    labels: Object.fromEntries(Object.entries(asRecord(widgets.labels)).filter((entry): entry is [string, string] => typeof entry[1] === "string")),
+    excludedFromTotal: strings(widgets.excludedFromTotal),
+  };
+}
+
+export async function saveSelectionWidgetOrder(tenantId: string, order: string[]) {
   const prisma = getPrismaClient();
-  const ids = baseSelectionId ? [selectionId, baseSelectionId] : [selectionId];
-  const [tenant, ownedSelections] = await Promise.all([
+  const uniqueOrder = [...new Set(order)];
+  const [tenant, owned] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } }),
+    prisma.copernicaSelection.count({ where: { tenantId, id: { in: uniqueOrder } } }),
+  ]);
+  if (!tenant) throw new Error("Tenant not found.");
+  if (owned !== uniqueOrder.length) throw new Error("Invalid selection.");
+
+  const settings = asRecord(tenant.settings);
+  const widgets = readSelectionWidgetSettings(settings);
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: { settings: { ...settings, selectionWidgets: { ...widgets, order: uniqueOrder } } },
+  });
+}
+
+export async function saveSelectionWidget(
+  tenantId: string,
+  selectionId: string,
+  widget: { label: string; baseSelectionId: string | null; includeInTotal: boolean },
+) {
+  const prisma = getPrismaClient();
+  const ids = widget.baseSelectionId ? [selectionId, widget.baseSelectionId] : [selectionId];
+  const [tenant, owned] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } }),
     prisma.copernicaSelection.count({ where: { tenantId, id: { in: ids } } }),
   ]);
   if (!tenant) throw new Error("Tenant not found.");
-  if (ownedSelections !== new Set(ids).size || selectionId === baseSelectionId) throw new Error("Invalid selection.");
+  if (owned !== new Set(ids).size || selectionId === widget.baseSelectionId) throw new Error("Invalid selection.");
 
   const settings = asRecord(tenant.settings);
+  const widgets = readSelectionWidgetSettings(settings);
+  const labels = { ...widgets.labels };
+  const label = widget.label.trim().slice(0, 80);
+  if (label) labels[selectionId] = label;
+  else delete labels[selectionId];
+  const excluded = new Set(widgets.excludedFromTotal);
+  if (widget.includeInTotal) excluded.delete(selectionId);
+  else excluded.add(selectionId);
   const ratios = { ...readSelectionRatios(settings) };
-  if (baseSelectionId) ratios[selectionId] = baseSelectionId;
+  if (widget.baseSelectionId) ratios[selectionId] = widget.baseSelectionId;
   else delete ratios[selectionId];
 
-  await prisma.tenant.update({ where: { id: tenantId }, data: { settings: { ...settings, selectionRatios: ratios } } });
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: {
+      settings: {
+        ...settings,
+        selectionRatios: ratios,
+        selectionWidgets: { ...widgets, labels, excludedFromTotal: [...excluded] },
+      },
+    },
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

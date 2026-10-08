@@ -1,13 +1,14 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
 import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
-import { saveSelectionRatio, saveTenantDashboardModules } from "@/lib/tenant-settings";
+import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
   return signInDemoAccount(formData);
@@ -216,20 +217,27 @@ export async function updateCopernicaSelectionsAction(formData: FormData) {
   redirect("/dashboard/customer/data?notice=selections-saved");
 }
 
-export async function updateSelectionRatioAction(formData: FormData) {
+export async function updateSelectionWidgetAction(formData: FormData) {
   const session = await requireRole("customer");
-  const selectionId = readField(formData, "selectionId");
-  const baseSelectionId = readField(formData, "baseSelectionId") || null;
-  const period = readField(formData, "period");
-  const returnTo = period && period !== "dag" ? `/dashboard/customer?vergelijk=${encodeURIComponent(period)}` : "/dashboard/customer";
 
   try {
-    await saveSelectionRatio(session.tenantId, selectionId, baseSelectionId);
+    await saveSelectionWidget(session.tenantId, readField(formData, "selectionId"), {
+      label: readField(formData, "label"),
+      baseSelectionId: readField(formData, "baseSelectionId") || null,
+      includeInTotal: formData.get("includeInTotal") === "on",
+    });
   } catch {
-    redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}error=ratio-failed`);
+    return { ok: false };
   }
 
-  redirect(returnTo);
+  refresh();
+  return { ok: true };
+}
+
+export async function reorderSelectionWidgetsAction(order: string[]) {
+  const session = await requireRole("customer");
+  if (!Array.isArray(order) || order.some((id) => typeof id !== "string")) throw new Error("Invalid order.");
+  await saveSelectionWidgetOrder(session.tenantId, order);
 }
 
 export async function syncCopernicaNowAction() {

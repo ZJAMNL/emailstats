@@ -347,12 +347,31 @@ td { color: #dfe9f5; }
 .ratio-periods dt { color: var(--muted); font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .ratio-periods dd { margin: .15rem 0 0; color: var(--muted); font-size: .76rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ratio-periods dd.trend-flat { font-weight: 500; }
-.ratio-config { margin: 0 0 .7rem; }
-.ratio-config summary { color: var(--accent); font-size: .75rem; font-weight: 700; cursor: pointer; }
-.ratio-config form { display: grid; gap: .55rem; margin-top: .6rem; }
-.ratio-config label { display: grid; gap: .35rem; color: var(--muted); font-size: .75rem; }
-.ratio-config select { min-height: 36px; padding: 0 .55rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-strong); color: var(--text); }
-.ratio-config .button { justify-self: start; min-height: 32px; padding: .3rem .75rem; font-size: .78rem; }
+.selection-widget { transition: opacity .15s ease, transform .15s ease; }
+.selection-widget.is-dragging { opacity: .45; transform: scale(.98); }
+.selection-widget-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.selection-widget-top .eyebrow { margin: 0; }
+.selection-widget-tools { display: flex; gap: .15rem; opacity: .45; transition: opacity .15s ease; }
+.selection-widget:hover .selection-widget-tools, .selection-widget:focus-within .selection-widget-tools { opacity: 1; }
+.widget-tool { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.widget-tool:hover, .widget-tool:focus-visible { background: rgba(127,140,160,.14); color: var(--text); }
+.widget-drag-handle { cursor: grab; touch-action: none; }
+.widget-drag-handle:active { cursor: grabbing; }
+.selection-widget-name { margin: .4rem 0 0; font-size: 1.15rem; overflow-wrap: anywhere; }
+.widget-dialog { width: min(520px, calc(100vw - 32px)); }
+.widget-dialog-form { display: grid; gap: 1.1rem; }
+.widget-dialog-form .customer-dialog-header { margin-bottom: 0; }
+.widget-dialog-form > label { display: grid; gap: .4rem; font-size: .82rem; font-weight: 700; }
+.widget-dialog-form input:not([type="checkbox"]), .widget-dialog-form select { min-height: 42px; padding: 0 .75rem; border: 1px solid var(--border); border-radius: 9px; outline: none; background: rgba(255,255,255,.03); color: var(--text); font-weight: 500; }
+.widget-dialog-form select { background: var(--panel-strong); }
+.widget-dialog-form input:focus, .widget-dialog-form select:focus { border-color: var(--accent); }
+.widget-dialog-form small { color: var(--muted); font-size: .72rem; font-weight: 400; line-height: 1.45; }
+.widget-dialog-form .widget-dialog-check { display: flex; align-items: flex-start; gap: .65rem; cursor: pointer; }
+.widget-dialog-check input { flex: 0 0 auto; width: 17px; height: 17px; margin-top: .1rem; accent-color: var(--accent); }
+.widget-dialog-check span { display: grid; gap: .2rem; }
+.widget-dialog-position { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; padding-top: 1rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .8rem; }
+.widget-dialog-position > div { display: flex; gap: .4rem; }
+.widget-dialog-position .button { min-height: 34px; padding: .35rem .7rem; font-size: .78rem; }
 .selection-compare-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; margin-top: 1.25rem; }
 .selection-compare-bar p { margin: 0; color: var(--muted); font-size: .8rem; }
 .segmented-control { display: inline-flex; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.03); }
@@ -391,7 +410,7 @@ td { color: #dfe9f5; }
 :root[data-theme="light"] .auth-form input, :root[data-theme="light"] .customer-form input, :root[data-theme="light"] .search-box input { background: #fff; color: var(--text); }
 :root[data-theme="light"] .button-secondary { background: #fff; }
 :root[data-theme="light"] .customer-dialog { background: #fff; }
-:root[data-theme="light"] .selection-savebar, :root[data-theme="light"] .ratio-config select { background: #fff; }
+:root[data-theme="light"] .selection-savebar, :root[data-theme="light"] .widget-dialog-form select { background: #fff; }
 :root[data-theme="light"] .customer-dialog::backdrop { background: rgba(21, 39, 56, .38); }
 :root[data-theme="light"] .logout-button { color: #56677b; }
 :root[data-theme="light"] .nav-item { color: #5b6b7e; }
