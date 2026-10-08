@@ -120,3 +120,17 @@ export function frequencyScore(orderCount: number, thresholds: number[]) {
   thresholds.slice(0, 5).forEach((threshold, index) => { if (orderCount >= threshold) score = index + 1; });
   return score;
 }
+
+/** Orders usable over the full history (no analysis window), for CLV and cohorts. */
+export function usableOrders(orders: RfmOrder[], options: Pick<RfmOptions, "now" | "excludedStatuses">) {
+  const excluded = new Set(options.excludedStatuses.map((status) => status.trim().toLowerCase()).filter(Boolean));
+  const latestAllowed = options.now.getTime() + dayMs;
+  const usable: { profileId: string; date: Date; amount: number }[] = [];
+  for (const order of orders) {
+    if (!order.profileId || !order.date || Number.isNaN(order.date.getTime())) continue;
+    if (order.status && excluded.has(order.status.trim().toLowerCase())) continue;
+    if (order.date.getTime() > latestAllowed) continue;
+    usable.push({ profileId: order.profileId, date: order.date, amount: order.amount ?? 0 });
+  }
+  return usable;
+}

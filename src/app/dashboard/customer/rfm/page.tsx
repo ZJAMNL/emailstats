@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { RfmHeatmap, RfmKpis, RfmSegmentTable, RfmShifts } from "@/components/rfm-overview";
+import { RfmCohorts, RfmHeatmap, RfmKpis, RfmPrediction, RfmSegmentTable, RfmShifts } from "@/components/rfm-overview";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { buildRfmMonthlyChange, buildRfmTrend, loadRfmResult, loadRfmSnapshots } from "@/lib/rfm/history";
 import { loadMigrationMatrix } from "@/lib/rfm/run";
@@ -47,9 +47,13 @@ export default async function CustomerRfm() {
 
       <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Segmenten</p><h2>Waarde en aanpak per segment</h2></div></div><RfmSegmentTable summary={summary} trends={buildRfmMonthlyChange(snapshots)} /></section>
 
+      <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Vooruitkijken</p><h2>Voorspelde klantwaarde</h2></div></div><RfmPrediction summary={summary} /></section>
+      <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Cohortanalyse</p><h2>Hoe houden we nieuwe klanten vast?</h2></div></div><RfmCohorts summary={summary} /></section>
       <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Ontwikkeling</p><h2>Klanten per segment</h2></div></div><SelectionTrendChart data={buildRfmTrend(snapshots)} selections={rfmSegments.map((segment) => ({ id: segment.key, name: segment.label, color: segment.color }))} storageKey={`customer-rfm-chart-hidden:${session.tenantId}`} /></section>
 
-      <p className="rfm-assumptions rfm-customer-note">De klantwaarde en databasewaarde zijn een indicatie op basis van je eigen orderhistorie: gemiddelde orderwaarde × aantal orders per jaar × verwachte klantduur ({value.lifespanYears.toLocaleString("nl-NL")} jaar){settings.marginPercent < 100 ? ` × marge (${settings.marginPercent}%)` : ""}. Profielen zonder recente order tellen mee op basis van het percentage dat vorig jaar voor het eerst kocht ({percent(value.conversionRate)}).</p>
+      <p className="rfm-assumptions rfm-customer-note">{summary.clv?.status === "ok"
+        ? `De databasewaarde is de voorspelde omzet van al je kopers in de komende 12 maanden${settings.marginPercent < 100 ? ` (na ${settings.marginPercent}% marge)` : ""}, plus de verwachte waarde van profielen die nog niet kochten. Uitleg over de modellen vind je onder Uitleg.`
+        : `De klantwaarde en databasewaarde zijn een indicatie op basis van je eigen orderhistorie: gemiddelde orderwaarde × aantal orders per jaar × verwachte klantduur (${value.lifespanYears.toLocaleString("nl-NL")} jaar)${settings.marginPercent < 100 ? ` × marge (${settings.marginPercent}%)` : ""}. Profielen zonder recente order tellen mee op basis van het percentage dat vorig jaar voor het eerst kocht (${percent(value.conversionRate)}).`}</p>
     </DashboardShell>
   );
 }

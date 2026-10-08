@@ -135,6 +135,9 @@ model RfmProfileScore {
   segment            String
   previousSegment    String?
   monthStartSegment  String?
+  predictedClv       Decimal? @db.Decimal(18, 2)
+  expectedOrders     Float?
+  probabilityAlive   Float?
   updatedAt          DateTime @updatedAt
   tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

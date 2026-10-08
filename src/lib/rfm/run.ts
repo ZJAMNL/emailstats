@@ -1,7 +1,9 @@
 import { getTenantCopernica } from "../copernica";
 import { getPrismaClient } from "../prisma";
 import { countDatabaseProfiles, fetchAllOrders } from "./copernica-orders";
-import { scoreRfm, type RfmDataQuality } from "./score";
+import { buildCohorts, type CohortRow } from "./cohort";
+import { predictClv, type ClvSummary } from "./predict";
+import { scoreRfm, usableOrders, type RfmDataQuality } from "./score";
 import { fmScore, type RfmSegmentKey } from "./segments";
 import { summarizeRfm, type RfmValueSummary } from "./value";
 
@@ -26,6 +28,9 @@ export type RfmRunSummary = {
   /** Customer counts on the R × FM grid: grid[r - 1][fm - 1]. */
   grid: number[][];
   settings: RfmModelSettings;
+  /** Absent in summaries stored before predictive CLV existed. */
+  clv?: ClvSummary;
+  cohorts?: CohortRow[];
 };
 
 /** Fetches orders from Copernica and scores them. Nothing is stored. */
@@ -44,8 +49,17 @@ export async function calculateRfm(tenantId: string, settings: RfmModelSettings)
   const grid = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => 0));
   for (const customer of customers) grid[customer.r - 1][fmScore(customer.f, customer.m) - 1]++;
 
-  const summary: RfmRunSummary = { ranAt: now.toISOString(), durationMs: Date.now() - started, ordersFetched: fetched.orders.length, totalProfiles, quality, value, grid, settings };
-  return { customers, summary };
+  const usable = usableOrders(fetched.orders, { now, excludedStatuses: settings.excludedStatuses });
+  const { summary: clv, perProfile } = predictClv(usable, new Map(customers.map((customer) => [customer.profileId, customer.segment])), {
+    now,
+    marginPercent: settings.marginPercent,
+    totalProfiles,
+    prospectValuePerProfile: value.prospects ? value.prospectValue / value.prospects : 0,
+  });
+  const cohorts = buildCohorts(usable, now);
+
+  const summary: RfmRunSummary = { ranAt: now.toISOString(), durationMs: Date.now() - started, ordersFetched: fetched.orders.length, totalProfiles, quality, value, grid, settings, clv, cohorts };
+  return { customers, summary, predictions: perProfile };
 }
 
 /** Calculates RFM with the saved configuration and stores scores, a daily snapshot and the run summary. */
@@ -55,7 +69,7 @@ export async function runRfm(tenantId: string) {
   if (!config) throw new Error("Er is nog geen RFM-model ingesteld.");
 
   try {
-    const { customers, summary } = await calculateRfm(tenantId, settingsFromConfig(config));
+    const { customers, summary, predictions } = await calculateRfm(tenantId, settingsFromConfig(config));
     const now = new Date(summary.ranAt);
     const newMonth = !config.lastRunAt || config.lastRunAt.getUTCFullYear() !== now.getUTCFullYear() || config.lastRunAt.getUTCMonth() !== now.getUTCMonth();
     const existing = await prisma.rfmProfileScore.findMany({ where: { tenantId }, select: { copernicaProfileId: true, segment: true, previousSegment: true, monthStartSegment: true } });
@@ -63,6 +77,7 @@ export async function runRfm(tenantId: string) {
 
     const rows = customers.map((customer) => {
       const before = existingById.get(customer.profileId);
+      const prediction = predictions.get(customer.profileId);
       return {
         tenantId,
         copernicaProfileId: customer.profileId,
@@ -77,6 +92,9 @@ export async function runRfm(tenantId: string) {
         previousSegment: before ? (before.segment !== customer.segment ? before.segment : before.previousSegment) : null,
         // The segment at the first run of the month is the baseline for the migration matrix.
         monthStartSegment: newMonth ? (before?.segment ?? null) : (before?.monthStartSegment ?? null),
+        predictedClv: prediction?.clv ?? null,
+        expectedOrders: prediction?.expectedOrders ?? null,
+        probabilityAlive: prediction?.probabilityAlive ?? null,
       };
     });
 

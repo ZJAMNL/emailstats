@@ -469,6 +469,23 @@ td { color: #dfe9f5; }
 .rfm-explainer dd { margin: .15rem 0 0; color: var(--muted); font-size: .85rem; }
 .rfm-caption { margin: .75rem 0 0; color: var(--muted); font-size: .78rem; }
 .rfm-customer-note { margin: 1rem 0 0; color: var(--muted); }
+.explain-status-table td { vertical-align: top; }
+.explain-status-table td:first-child a { color: var(--accent); font-weight: 700; }
+.explain-status-table small { display: block; margin-top: .3rem; color: var(--muted); font-size: .75rem; line-height: 1.45; }
+.explain-status { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.explain-status-ok { background: rgba(76,201,167,.14); color: var(--accent); }
+.explain-status-off { background: rgba(127,140,160,.14); color: var(--muted); }
+.explain-status-missing { background: rgba(246,175,97,.16); color: #c9842f; }
+.explain-source { margin: 1rem 0 0; color: var(--muted); font-size: .8rem; }
+.explain-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.explain-card { display: grid; align-content: start; gap: 1rem; scroll-margin-top: 1rem; }
+.explain-card-head { display: flex; gap: .9rem; }
+.explain-card h2 { margin: 0; font-size: 1.1rem; }
+.explain-question { margin: .3rem 0 0; color: var(--accent); font-size: .9rem; font-weight: 700; }
+.explain-card dl { display: grid; gap: .75rem; margin: 0; }
+.explain-card dt { color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.explain-card dd { margin: .2rem 0 0; font-size: .88rem; line-height: 1.6; }
+.explain-link { color: var(--accent); font-size: .85rem; font-weight: 700; }
 .rfm-meta { margin: 0 0 1rem; color: var(--muted); font-size: .82rem; }
 .rfm-intro { max-width: 760px; color: var(--muted); line-height: 1.6; }
 .rfm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
@@ -477,6 +494,23 @@ td { color: #dfe9f5; }
 .rfm-kpi strong { font-size: 1.7rem; font-variant-numeric: tabular-nums; }
 .rfm-kpi small { color: var(--muted); font-size: .74rem; line-height: 1.45; }
 .rfm-kpi-warning strong { color: #d07a52; }
+.rfm-kpi-accent { border-color: rgba(76,201,167,.45); }
+.rfm-kpi-accent strong { color: var(--accent); }
+.rfm-prediction { display: grid; gap: 1.25rem; }
+.rfm-prediction-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+.rfm-prediction-figures div { display: grid; gap: .25rem; }
+.rfm-prediction-figures span, .rfm-alive p { margin: 0; color: var(--muted); font-size: .78rem; font-weight: 700; }
+.rfm-prediction-figures strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.rfm-prediction-figures small { color: var(--muted); font-size: .74rem; }
+.rfm-alive { display: grid; gap: .45rem; }
+.rfm-alive-row { display: grid; grid-template-columns: 220px minmax(0, 1fr) 70px; align-items: center; gap: .75rem; font-size: .82rem; }
+.rfm-alive-row i { height: 12px; border-radius: 6px; background: var(--accent); opacity: .75; }
+.rfm-alive-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.rfm-cohorts { display: grid; gap: .75rem; }
+.rfm-cohorts h3 { margin: .5rem 0 0; font-size: .95rem; }
+.rfm-cohort-table th, .rfm-cohort-table td { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rfm-cohort-table th[scope="row"] { text-align: left; }
+.rfm-cohort-cell { min-width: 52px; text-align: center; font-size: .78rem; }
 .rfm-heatmap { display: grid; grid-template-columns: auto 1fr; gap: .5rem; }
 .rfm-heatmap-ylabel { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; color: var(--muted); font-size: .72rem; }
 .rfm-heatmap-grid { display: grid; gap: 4px; }
@@ -585,7 +619,9 @@ td { color: #dfe9f5; }
 @media (max-width: 980px) {
   .hero, .feature-grid, .client-grid, .campaign-grid, .panel-grid, .data-overview, .auth-page, .demo-section, .step-list { grid-template-columns: 1fr; }
   .landing-nav-link { display: none; }
-  .rfm-explainer { grid-template-columns: 1fr; }
+  .rfm-explainer, .explain-grid { grid-template-columns: 1fr; }
+  .rfm-alive-row { grid-template-columns: 1fr 60px; }
+  .rfm-alive-row i { display: none; }
   .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .security-panel { align-items: flex-start; flex-direction: column; }
   .app-shell { grid-template-columns: minmax(0, 1fr); }

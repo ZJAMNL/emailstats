@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Calculator, Database, Save } from "lucide-react";
 import { rfmCollectionDetailsAction, rfmCollectionsAction, rfmPreviewAction, rfmSaveAction } from "@/app/rfm-actions";
 import type { RfmModelSettings, RfmRunSummary } from "@/lib/rfm/run";
-import { RfmHeatmap, RfmKpis, RfmQuality, RfmSegmentTable } from "@/components/rfm-overview";
+import { RfmCohorts, RfmHeatmap, RfmKpis, RfmPrediction, RfmQuality, RfmSegmentTable } from "@/components/rfm-overview";
 
 type Collection = { id: string; name: string };
 type Field = { id: string; name: string; type: string };
@@ -140,6 +140,10 @@ export function RfmSetup({ tenantId, initial }: { tenantId: string; initial: Rfm
         <RfmKpis summary={preview} />
         <div className="rfm-preview-grid"><RfmHeatmap grid={preview.grid} /></div>
         <RfmSegmentTable summary={preview} />
+        <h3>Voorspelde klantwaarde</h3>
+        <RfmPrediction summary={preview} />
+        <h3>Cohortanalyse</h3>
+        <RfmCohorts summary={preview} />
       </section> : null}
     </div>
   );

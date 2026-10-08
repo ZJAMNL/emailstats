@@ -1,4 +1,5 @@
 import { rfmSegmentByKey, rfmSegments, segmentFor, type RfmSegmentKey } from "@/lib/rfm/segments";
+import { cohortRevenueMonths } from "@/lib/rfm/cohort";
 import type { RfmRunSummary } from "@/lib/rfm/run";
 
 const euro = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -14,9 +15,12 @@ export function RfmKpis({ summary }: { summary: RfmRunSummary }) {
   const topRevenue = segment("champions").revenue + segment("loyal").revenue;
   const atRisk = [segment("at_risk"), segment("cant_lose")];
   const windowYears = summary.settings.windowMonths / 12;
+  const clv = summary.clv?.status === "ok" ? summary.clv : null;
   return (
     <section className="rfm-kpis">
-      <article className="panel rfm-kpi"><span>Geschatte databasewaarde</span><strong>{euro.format(value.databaseValue)}</strong><small>{euro.format(value.activeValue)} actieve klanten + {euro.format(value.prospectValue)} prospects</small></article>
+      {clv
+        ? <article className="panel rfm-kpi rfm-kpi-accent"><span>Databasewaarde (komende 12 maanden)</span><strong>{euro.format(clv.customerEquity)}</strong><small>{euro.format(clv.totalClv)} voorspeld van {number.format(clv.customers)} kopers + {euro.format(clv.prospectValue)} van profielen zonder aankoop</small></article>
+        : <article className="panel rfm-kpi"><span>Geschatte databasewaarde</span><strong>{euro.format(value.databaseValue)}</strong><small>{euro.format(value.activeValue)} actieve klanten + {euro.format(value.prospectValue)} prospects</small></article>}
       <article className="panel rfm-kpi"><span>Klanten in {summary.settings.windowMonths} maanden</span><strong>{number.format(value.customers)}</strong><small>{number.format(value.activeCustomers)} actief · {number.format(value.prospects)} profielen zonder recente order</small></article>
       <article className="panel rfm-kpi"><span>Omzet in het venster</span><strong>{euro.format(value.revenue)}</strong><small>±{euro.format(value.revenue / windowYears)} per jaar · top 20% klanten = {percent(value.topCustomerRevenueShare)} van de omzet</small></article>
       <article className="panel rfm-kpi"><span>Kampioenen + loyale klanten</span><strong>{value.revenue ? percent(topRevenue / value.revenue) : "—"}</strong><small>van de omzet, door {number.format(segment("champions").customers + segment("loyal").customers)} klanten</small></article>
@@ -59,10 +63,12 @@ export function RfmHeatmap({ grid }: { grid: number[][] }) {
 export function RfmSegmentTable({ summary, trends }: { summary: RfmRunSummary; trends?: RfmTrend[] }) {
   const { value } = summary;
   const trendByKey = new Map(trends?.map((trend) => [trend.key, trend]));
+  const clv = summary.clv?.status === "ok" ? summary.clv : null;
+  const predictionByKey = new Map(clv?.segments.map((segment) => [segment.key, segment]));
   return (
     <div className="table-wrap">
       <table className="rfm-table">
-        <thead><tr><th>Segment</th><th>Klanten</th><th>Omzet</th><th>Gem. order</th><th>Orders/jaar</th><th>Laatste order</th><th>Klantwaarde</th><th>Aanpak</th></tr></thead>
+        <thead><tr><th>Segment</th><th>Klanten</th><th>Omzet</th><th>Gem. order</th><th>Orders/jaar</th><th>Laatste order</th>{clv ? <><th>Voorspelde waarde/klant</th><th>Kans actief</th></> : <th>Klantwaarde</th>}<th>Aanpak</th></tr></thead>
         <tbody>
           {value.segments.map((segment) => {
             const definition = rfmSegmentByKey.get(segment.key)!;
@@ -76,7 +82,7 @@ export function RfmSegmentTable({ summary, trends }: { summary: RfmRunSummary; t
                 <td>{segment.orders ? euro.format(segment.avgOrderValue) : "—"}</td>
                 <td>{segment.customers ? segment.ordersPerYear.toLocaleString("nl-NL", { maximumFractionDigits: 1 }) : "—"}</td>
                 <td>{segment.customers ? `${number.format(segment.avgRecencyDays)} dagen` : "—"}</td>
-                <td>{definition.active && segment.customers ? euro.format(segment.clv) : "—"}</td>
+                {clv ? <><td>{predictionByKey.get(segment.key)?.customers ? euro.format(predictionByKey.get(segment.key)!.avgClv) : "—"}</td><td>{predictionByKey.get(segment.key)?.customers ? percent(predictionByKey.get(segment.key)!.avgProbabilityAlive) : "—"}</td></> : <td>{definition.active && segment.customers ? euro.format(segment.clv) : "—"}</td>}
                 <td className="rfm-action">{definition.action}</td>
               </tr>
             );
@@ -117,6 +123,54 @@ export function RfmQuality({ summary }: { summary: RfmRunSummary }) {
       <p><strong>{number.format(quality.usedOrders)}</strong> van {number.format(quality.totalOrders)} orders gebruikt · {number.format(summary.totalProfiles)} profielen in de database · berekend in {(summary.durationMs / 1000).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} s</p>
       {issues.length ? <ul>{issues.map(([count, label]) => <li key={label}>{number.format(count)} {label}</li>)}</ul> : <p>Geen datakwaliteitsproblemen gevonden.</p>}
       <p className="rfm-assumptions">Aannames voor de klantwaarde: verwachte levensduur {summary.value.lifespanYears.toLocaleString("nl-NL")} jaar (op basis van {percent(summary.value.churnRate)} klanten zonder order in het laatste jaar), marge {summary.settings.marginPercent}%, conversie van prospects {percent(summary.value.conversionRate)} per jaar. Dit is een indicatie, geen voorspelling.</p>
+    </div>
+  );
+}
+
+export function RfmPrediction({ summary }: { summary: RfmRunSummary }) {
+  const clv = summary.clv;
+  if (!clv) return <p className="empty-state">Bereken het model opnieuw om de voorspelde klantwaarde te zien.</p>;
+  if (clv.status !== "ok") return <p className="empty-state">{clv.message}</p>;
+  const maxBand = Math.max(1, ...clv.aliveBands.map((band) => band.customers));
+  return (
+    <div className="rfm-prediction">
+      <div className="rfm-prediction-figures">
+        <div><span>Voorspelde omzet van bestaande kopers</span><strong>{euro.format(clv.totalClv)}</strong><small>in de komende 12 maanden{summary.settings.marginPercent < 100 ? `, na ${summary.settings.marginPercent}% marge` : ""}</small></div>
+        <div><span>Verwachte orders</span><strong>{number.format(Math.round(clv.expectedOrders))}</strong><small>gemiddelde orderwaarde ±{euro.format(clv.populationOrderValue)}</small></div>
+        <div><span>Top 10% van de kopers</span><strong>{percent(clv.top10Share)}</strong><small>van de voorspelde waarde</small></div>
+      </div>
+      <div className="rfm-alive">
+        <p>Kans dat een koper nog actief is</p>
+        {clv.aliveBands.map((band) => <div className="rfm-alive-row" key={band.label}><span>{band.label}</span><i style={{ width: `${(band.customers / maxBand) * 100}%` }} /><strong>{number.format(band.customers)}</strong></div>)}
+      </div>
+      <p className="rfm-assumptions">Voorspeld met het BG/NBD-model (aantal aankopen) en het Gamma-Gamma-model (besteding per order) op {number.format(clv.customers)} kopers, waarvan {number.format(clv.repeatCustomers)} met een herhaalaankoop. Het model rekent met het eigen koopritme van elke klant: wie normaal eens per jaar koopt, telt na een paar stille maanden nog niet als afhaker. {clv.outsideWindow.customers ? `${number.format(clv.outsideWindow.customers)} kopers van vóór het analysevenster samen nog ${euro.format(clv.outsideWindow.totalClv)}.` : ""}</p>
+    </div>
+  );
+}
+
+const monthName = (value: string) => new Date(`${value}-15T12:00:00Z`).toLocaleDateString("nl-NL", { month: "short", year: "numeric" });
+
+export function RfmCohorts({ summary }: { summary: RfmRunSummary }) {
+  const cohorts = summary.cohorts;
+  if (!cohorts?.length) return <p className="empty-state">Nog geen cohorten: bereken het model opnieuw.</p>;
+  const offsets = cohorts[0].retention.length;
+  return (
+    <div className="rfm-cohorts">
+      <h3>Herhaalaankopen per maand na de eerste aankoop</h3>
+      <div className="table-wrap">
+        <table className="rfm-cohort-table">
+          <thead><tr><th>Eerste aankoop</th><th>Klanten</th>{Array.from({ length: offsets }, (_, index) => <th key={index}>M{index + 1}</th>)}</tr></thead>
+          <tbody>{cohorts.map((cohort) => <tr key={cohort.month}><th scope="row">{monthName(cohort.month)}</th><td>{number.format(cohort.customers)}</td>{cohort.retention.map((share, index) => <td className="rfm-cohort-cell" key={index} style={share === null ? undefined : { background: `color-mix(in srgb, var(--accent) ${Math.round(Math.min(1, share / 0.3) * 70)}%, transparent)` }}>{share === null ? "" : percent(share)}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+      <h3>Omzet per klant sinds de eerste aankoop</h3>
+      <div className="table-wrap">
+        <table className="rfm-cohort-table">
+          <thead><tr><th>Eerste aankoop</th>{cohortRevenueMonths.map((months) => <th key={months}>{months === 1 ? "1e maand" : `${months} mnd`}</th>)}</tr></thead>
+          <tbody>{cohorts.map((cohort) => <tr key={cohort.month}><th scope="row">{monthName(cohort.month)}</th>{cohort.revenuePerCustomer.map((revenue, index) => <td key={index}>{revenue === null ? "" : euro.format(revenue)}</td>)}</tr>)}</tbody>
+        </table>
+      </div>
+      <p className="rfm-assumptions">Lees een rij van links naar rechts: zo ontwikkelt een groep klanten zich na hun eerste aankoop. Vergelijk een maand met dezelfde maand een jaar eerder om te zien of nieuwe klanten beter of slechter worden. Lege vakken zijn nog niet volledig verstreken.</p>
     </div>
   );
 }

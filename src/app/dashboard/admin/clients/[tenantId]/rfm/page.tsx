@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { RfmControls } from "@/components/rfm-controls";
-import { RfmHeatmap, RfmKpis, RfmQuality, RfmSegmentTable, RfmShifts } from "@/components/rfm-overview";
+import { RfmCohorts, RfmHeatmap, RfmKpis, RfmPrediction, RfmQuality, RfmSegmentTable, RfmShifts } from "@/components/rfm-overview";
 import { RfmSetup } from "@/components/rfm-setup";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
@@ -52,6 +52,8 @@ export default async function AdminClientRfm({ params }: { params: Promise<{ ten
           <article className="panel"><div className="panel-heading"><div><p className="eyebrow">Deze maand</p><h2>Grootste verschuivingen</h2></div></div><RfmShifts shifts={shifts} /></article>
         </section>
         <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Segmenten</p><h2>Waarde en aanpak per segment</h2></div></div><RfmSegmentTable summary={summary} trends={trends} /></section>
+        <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Vooruitkijken</p><h2>Voorspelde klantwaarde</h2></div></div><RfmPrediction summary={summary} /></section>
+        <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Cohortanalyse</p><h2>Hoe houden we nieuwe klanten vast?</h2></div></div><RfmCohorts summary={summary} /></section>
         <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Ontwikkeling</p><h2>Klanten per segment</h2></div></div><SelectionTrendChart data={trendData} selections={rfmSegments.map((segment) => ({ id: segment.key, name: segment.label, color: segment.color }))} storageKey={`rfm-chart-hidden:${tenant.id}`} /></section>
         <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Datakwaliteit</p><h2>Gebruikte gegevens en aannames</h2></div></div><RfmQuality summary={summary} /></section>
       </> : null}
