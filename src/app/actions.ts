@@ -8,6 +8,7 @@ import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { createSession, requireRole, requireSession } from "@/lib/session";
+import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
 import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
@@ -158,6 +159,30 @@ export async function updateTenantDashboardModulesAction(formData: FormData) {
   }
 
   redirect(`/dashboard/admin/clients/${encodeURIComponent(tenantId)}?notice=settings-saved`);
+}
+
+const maxHistoryCsvLength = 500_000;
+
+export async function previewSelectionHistoryAction(tenantId: string, csv: string) {
+  await requireRole("admin");
+  if (typeof csv !== "string" || csv.length > maxHistoryCsvLength) return { ok: false as const, error: "Het bestand is te groot (maximaal 500 KB)." };
+  try {
+    return { ok: true as const, preview: await previewSelectionHistory(tenantId, csv) };
+  } catch {
+    return { ok: false as const, error: "Het bestand kon niet worden gelezen." };
+  }
+}
+
+export async function importSelectionHistoryAction(tenantId: string, csv: string, mapping: Record<string, string>, followSelections: boolean) {
+  await requireRole("admin");
+  if (typeof csv !== "string" || csv.length > maxHistoryCsvLength) return { ok: false as const, error: "Het bestand is te groot (maximaal 500 KB)." };
+  try {
+    const result = await importSelectionHistory(tenantId, csv, mapping, followSelections === true);
+    refresh();
+    return { ok: true as const, result };
+  } catch {
+    return { ok: false as const, error: "Importeren is niet gelukt. Er is niets opgeslagen." };
+  }
 }
 
 export async function connectCopernicaAction(formData: FormData) {

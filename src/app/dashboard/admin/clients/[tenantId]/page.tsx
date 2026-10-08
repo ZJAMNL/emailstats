@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { impersonateCustomerAction, updateTenantDashboardModulesAction } from "@/app/actions";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
+import { SelectionHistoryImport } from "@/components/selection-history-import";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
@@ -110,6 +111,12 @@ export default async function AdminClientDetail({ params, searchParams }: Client
           <label className="module-setting-option"><span><strong>E-mailcampagnestatistieken</strong><small>Toon campagne-KPI’s en campagneoverzichten voor deze klant.</small></span><input defaultChecked={dashboardModules.campaignStats} name="campaignStats" type="checkbox" /></label>
           <button className="button button-primary" type="submit">Instellingen opslaan</button>
         </form>
+      </section>
+
+      <section className="panel table-panel">
+        <div className="panel-heading"><div><p className="eyebrow">Historische data</p><h2>Selectiehistorie importeren</h2></div></div>
+        <p className="tenant-boundary">Voeg eerdere profielaantallen toe vanuit een CSV-bestand. Je ziet eerst een voorbeeld; er wordt pas iets opgeslagen als je bevestigt.</p>
+        <SelectionHistoryImport tenantId={tenant.id} />
       </section>
 
       <section className="panel table-panel">

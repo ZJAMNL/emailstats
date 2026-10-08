@@ -17,16 +17,24 @@ const comparePeriods = {
   jaar: { label: "Jaar", days: 365, since: "vorig jaar" },
 } as const;
 type ComparePeriod = keyof typeof comparePeriods;
+const chartRanges = {
+  "3m": { label: "3 maanden", days: 91 },
+  "1j": { label: "1 jaar", days: 366 },
+  alles: { label: "Alles", days: null },
+} as const;
+type ChartRange = keyof typeof chartRanges;
+const defaultChartRange: ChartRange = "1j";
 const dayMs = 24 * 60 * 60 * 1000;
 const chartColors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", "#4c7878", "#a8456b", "#5f7a2e"];
 
 type CustomerDashboardProps = {
-  searchParams: Promise<{ vergelijk?: string }>;
+  searchParams: Promise<{ vergelijk?: string; bereik?: string }>;
 };
 
 export default async function CustomerDashboard({ searchParams }: CustomerDashboardProps) {
   const session = await requireRole("customer");
-  const { vergelijk } = await searchParams;
+  const { vergelijk, bereik } = await searchParams;
+  const chartRange: ChartRange = bereik && bereik in chartRanges ? bereik as ChartRange : defaultChartRange;
   const period: ComparePeriod = vergelijk && vergelijk in comparePeriods ? vergelijk as ComparePeriod : "dag";
   let tenant: Awaited<ReturnType<typeof loadTenant>> = null;
   let databaseUnavailable = false;
@@ -61,7 +69,15 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const totalSeries = totalSelections.map((selection, index) => ({ id: selection.id, name: displayName(selection), color: chartColors[index % chartColors.length] }));
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
   const totalSelectedProfiles = totalSelections.reduce((total, selection) => total + latestSelectionCount(selection), 0);
-  const profileTrend = buildSelectionSeries(totalSelections);
+  const profileTrend = buildSelectionSeries(totalSelections, chartRanges[chartRange].days);
+  const dashboardHref = (next: { period?: ComparePeriod; range?: ChartRange }) => {
+    const params = new URLSearchParams();
+    const nextPeriod = next.period ?? period;
+    const nextRange = next.range ?? chartRange;
+    if (nextPeriod !== "dag") params.set("vergelijk", nextPeriod);
+    if (nextRange !== defaultChartRange) params.set("bereik", nextRange);
+    return params.size ? `/dashboard/customer?${params}` : "/dashboard/customer";
+  };
   const selectionWidgets: SelectionWidgetData[] = orderedSelections.map((selection) => {
     const current = latestSelectionCount(selection);
     const comparison = compareSnapshot(selection.snapshots, comparePeriods[period].days);
@@ -122,6 +138,9 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
         <section className="panel-grid two-columns selection-overview-grid">
           <article className="panel selection-total-panel">
             <div className="panel-heading"><div><p className="eyebrow">Profieldata</p><h2>Totaal van getoonde selecties</h2></div><span className="tab">{totalSelections.length} van {selections.length} selecties</span></div>
+            <nav className="segmented-control selection-range-control" aria-label="Periode van de grafiek">
+              {(Object.keys(chartRanges) as ChartRange[]).map((key) => <Link aria-current={key === chartRange ? "page" : undefined} href={dashboardHref({ range: key })} key={key} scroll={false}>{chartRanges[key].label}</Link>)}
+            </nav>
             <strong className="selection-total-value">{totalSelectedProfiles.toLocaleString("nl-NL")}</strong>
             <SelectionTrendChart data={profileTrend} selections={totalSeries} />
           </article>
@@ -134,7 +153,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
         <div className="selection-compare-bar">
           <p>Verschil ten opzichte van</p>
           <nav className="segmented-control" aria-label="Vergelijkingsperiode">
-            {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => <Link aria-current={key === period ? "page" : undefined} href={key === "dag" ? "/dashboard/customer" : `/dashboard/customer?vergelijk=${key}`} key={key} scroll={false}>{comparePeriods[key].label}</Link>)}
+            {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => <Link aria-current={key === period ? "page" : undefined} href={dashboardHref({ period: key })} key={key} scroll={false}>{comparePeriods[key].label}</Link>)}
           </nav>
         </div>
         <SelectionWidgetGrid widgets={selectionWidgets} />
@@ -220,9 +239,9 @@ function formatPercent(value: number) {
   return `${value.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
-function buildSelectionSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"]) {
+function buildSelectionSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"], rangeDays: number | null) {
   const points = new Map<string, { date: string; [selectionId: string]: number | string }>();
-  const chartStart = Date.now() - 90 * dayMs;
+  const chartStart = rangeDays === null ? 0 : Date.now() - rangeDays * dayMs;
   for (const selection of selections) {
     for (const snapshot of selection.snapshots) {
       if (snapshot.measuredAt.getTime() < chartStart) continue;
