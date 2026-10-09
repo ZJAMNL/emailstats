@@ -4,6 +4,8 @@ import { MetricsGrid } from "@/components/metrics-grid";
 import { PerformanceChart } from "@/components/performance-chart";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
+import { CustomerAlerts } from "@/components/customer-alerts";
+import { loadCustomerAlerts, type CustomerAlert } from "@/lib/alerts/customer";
 import { requireRole } from "@/lib/session";
 import { compareSnapshot, selectionRatio } from "@/lib/snapshots";
 import { canManageTenant, filterCampaigns, getCustomerScope } from "@/lib/webshops";
@@ -41,11 +43,13 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const { allowed, current: scope } = await getCustomerScope(session);
   if (!scope) return <DashboardShell role="customer" title={session.name} subtitle="Je dashboard"><p className="empty-state">Je account heeft nog geen toegang tot een webshop. Neem contact op met je beheerder.</p></DashboardShell>;
   let tenant: Awaited<ReturnType<typeof loadTenant>> = null;
+  let alerts: CustomerAlert[] | null = null;
   let databaseUnavailable = false;
 
   if (process.env.DATABASE_URL) {
     try {
-      tenant = await loadTenant(session.tenantId, scope.id);
+      // Alerts cover the whole database, so users limited to some webshops do not see them.
+      [tenant, alerts] = await Promise.all([loadTenant(session.tenantId, scope.id), canManageTenant(allowed) ? loadCustomerAlerts(session.tenantId) : Promise.resolve(null)]);
     } catch {
       databaseUnavailable = true;
     }
@@ -132,6 +136,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   return (
     <DashboardShell role="customer" title={tenant?.name ?? session.name} subtitle={scope.webshop ? `Gegevens van webshop ${scope.name}.` : "Je e-mailcampagnes en prestaties uit Copernica."}>
       {databaseUnavailable ? <p className="form-error" role="status">De klantdatabase is nog niet geconfigureerd. Vraag de beheerder om PostgreSQL in te stellen en te migreren.</p> : null}
+      {alerts ? <CustomerAlerts alerts={alerts} /> : null}
       {dashboardModules.campaignStats ? <>
         <MetricsGrid metrics={metrics} />
         <section className="panel-grid two-columns">
