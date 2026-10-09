@@ -245,6 +245,7 @@ td { color: #dfe9f5; }
 .client-brand { display: flex; align-items: center; gap: .75rem; min-width: 0; }
 .client-logo { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,.05); color: var(--accent); font-size: 1.15rem; font-weight: 800; }
 .client-logo img { width: 44px; height: 44px; object-fit: contain; }
+.client-logo:has(img) { border: 0; background: none; }
 .client-widget .module-chip.is-off { text-decoration: none; opacity: .55; }
 .client-grid .client-widget { display: flex; flex-direction: column; min-height: 0; }
 .client-widget-header { display: flex; align-items: center; gap: .7rem; min-width: 0; }
