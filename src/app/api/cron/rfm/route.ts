@@ -1,5 +1,5 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 import { getPrismaClient } from "@/lib/prisma";
 import { runRfm } from "@/lib/rfm/run";
 import { writeRfmToCopernica } from "@/lib/rfm/writeback";
@@ -9,9 +9,7 @@ export const maxDuration = 300;
 
 /** Nightly: recalculate every enabled RFM model and write changes back to Copernica where that is switched on. */
 export async function GET(request: NextRequest) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const providedSecret = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  if (!expectedSecret || !providedSecret || !constantTimeEquals(providedSecret, expectedSecret)) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
@@ -39,10 +37,4 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ processed: results.length, total: configs.length, results });
-}
-
-function constantTimeEquals(left: string, right: string) {
-  const leftHash = createHash("sha256").update(left).digest();
-  const rightHash = createHash("sha256").update(right).digest();
-  return timingSafeEqual(leftHash, rightHash);
 }

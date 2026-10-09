@@ -33,11 +33,18 @@ export type CopernicaMailing = {
   target?: { sources?: Array<{ id: number | string; type: string }> };
 };
 
+type CopernicaCount = { total?: number | string; unique?: number | string };
+
 type CopernicaMailingStats = {
   destinations?: number | string;
   deliveries?: { total?: number | string };
   impressions?: { total?: number | string };
   clicks?: { total?: number | string };
+  /** Bounces. */
+  errors?: CopernicaCount;
+  unsubscribes?: CopernicaCount;
+  /** Spam complaints. */
+  abuses?: CopernicaCount;
 };
 
 export async function getCopernicaJwt(apiToken: string) {
@@ -256,6 +263,10 @@ export async function syncTenantCopernicaData(
       const sentCount = countValue(stats.deliveries?.total ?? stats.destinations ?? mailing.destinations);
       const openCount = countValue(stats.impressions?.total ?? mailing.impressions);
       const clickCount = countValue(stats.clicks?.total ?? mailing.clicks);
+      // Recipients rather than events, so rates stay comparable to the number sent.
+      const bounceCount = countValue(stats.errors?.unique ?? stats.errors?.total);
+      const unsubscribeCount = countValue(stats.unsubscribes?.unique ?? stats.unsubscribes?.total);
+      const complaintCount = countValue(stats.abuses?.unique ?? stats.abuses?.total);
 
       await prisma.campaign.upsert({
         where: { tenantId_copernicaId: { tenantId, copernicaId } },
@@ -267,6 +278,9 @@ export async function syncTenantCopernicaData(
           sentCount,
           openCount,
           clickCount,
+          bounceCount,
+          unsubscribeCount,
+          complaintCount,
           revenue: 0,
           sentAt,
         },
@@ -275,6 +289,9 @@ export async function syncTenantCopernicaData(
           sentCount,
           openCount,
           clickCount,
+          bounceCount,
+          unsubscribeCount,
+          complaintCount,
           sentAt,
         },
       });

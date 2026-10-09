@@ -5,6 +5,7 @@ import { PerformanceChart } from "@/components/performance-chart";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { compareSnapshot, selectionRatio } from "@/lib/snapshots";
 import { canManageTenant, filterCampaigns, getCustomerScope } from "@/lib/webshops";
 import { SelectionWidgetGrid, type SelectionWidgetData } from "@/components/selection-widget-grid";
 import { readSelectionRatios, readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
@@ -212,36 +213,9 @@ function buildMonthlySeries(campaigns: NonNullable<Awaited<ReturnType<typeof loa
   return months;
 }
 
-function compareSnapshot(snapshots: Array<{ measuredAt: Date; profileCount: number }>, days: number) {
-  const latest = snapshots[0];
-  if (!latest) return null;
-  const target = latest.measuredAt.getTime() - days * dayMs;
-  const match = snapshots.find((snapshot) => snapshot.measuredAt.getTime() <= target);
-  if (!match) return null;
-  // Snapshots can be missing on some days; flag comparisons that land more than a day before the target.
-  return { ...match, approximate: target - match.measuredAt.getTime() > dayMs };
-}
-
 function sortByOrder<T extends { id: string }>(items: T[], order: string[]) {
   const position = new Map(order.map((id, index) => [id, index]));
   return [...items].sort((left, right) => (position.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (position.get(right.id) ?? Number.MAX_SAFE_INTEGER));
-}
-
-function snapshotOnOrBefore(snapshots: Array<{ measuredAt: Date; profileCount: number }>, time: number) {
-  return snapshots.find((snapshot) => snapshot.measuredAt.getTime() <= time) ?? null;
-}
-
-// Share of `part` in `base` (as a percentage) measured `daysAgo` days before the latest measurement of `part`.
-function selectionRatio(part: Array<{ measuredAt: Date; profileCount: number }>, base: Array<{ measuredAt: Date; profileCount: number }>, daysAgo: number) {
-  const latest = part[0];
-  if (!latest) return null;
-  const target = latest.measuredAt.getTime() - daysAgo * dayMs;
-  const partSnapshot = snapshotOnOrBefore(part, target);
-  const baseSnapshot = snapshotOnOrBefore(base, target);
-  if (!partSnapshot || !baseSnapshot || baseSnapshot.profileCount === 0) return null;
-  // Both measurements must come from roughly the same day to be comparable.
-  if (Math.abs(partSnapshot.measuredAt.getTime() - baseSnapshot.measuredAt.getTime()) > dayMs) return null;
-  return (partSnapshot.profileCount / baseSnapshot.profileCount) * 100;
 }
 
 function formatPercent(value: number) {

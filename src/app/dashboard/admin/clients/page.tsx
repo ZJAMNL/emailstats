@@ -1,4 +1,4 @@
-import { Database, Eye, Mail, Search } from "lucide-react";
+import { BellRing, Database, Eye, Mail, Search } from "lucide-react";
 import Image from "next/image";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ClientEditDialog } from "@/components/client-edit-dialog";
@@ -95,7 +95,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
               {showProfiles ? profileDelta === null
                 ? <p className="selection-widget-delta selection-widget-delta-empty">Nog geen meting van gisteren</p>
                 : <p className={`selection-widget-delta ${profileDelta < 0 ? "trend-down" : profileDelta > 0 ? "trend-up" : "trend-flat"}`}>{profileDelta > 0 ? "+" : ""}{profileDelta.toLocaleString("nl-NL")} sinds gisteren</p> : null}
-              <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span>{client.users[0] && client.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={client.id} /><button aria-label={`Inloggen als ${client.name}`} className="icon-button client-widget-login" title={`Inloggen als ${client.name}`} type="submit"><Eye size={16} /></button></form> : null}</div>
+              <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span><span className={`module-chip${client.alertSettings?.enabled ? "" : " is-off"}`}><BellRing size={13} /> Alerts</span>{client.users[0] && client.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={client.id} /><button aria-label={`Inloggen als ${client.name}`} className="icon-button client-widget-login" title={`Inloggen als ${client.name}`} type="submit"><Eye size={16} /></button></form> : null}</div>
               <div className="client-widget-footer">
                 <small className="selection-widget-date">{client.copernica ? lastSync ? `Laatste sync ${lastSync.toLocaleDateString("nl-NL")}` : "Nog niet gesynchroniseerd" : "Geen Copernica-koppeling"}</small>
               <ClientEditDialog client={{
@@ -130,6 +130,7 @@ function loadClients(session: AdminSession, search: string, ownerFilter: string)
     },
     include: {
       owner: { select: { name: true } },
+      alertSettings: { select: { enabled: true } },
       users: { where: { role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, take: 1 },
       _count: { select: { campaigns: true } },
       copernica: true,

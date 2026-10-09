@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, Database, Eye, Gem, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { impersonateCustomerAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
+import { AdminAlerts } from "@/components/admin-alerts";
 import { AdminUsers } from "@/components/admin-users";
 import { AdminWebshops } from "@/components/admin-webshops";
 import { DashboardShell } from "@/components/dashboard-shell";
@@ -11,6 +12,9 @@ import { SelectionHistoryImport } from "@/components/selection-history-import";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireTenantAdmin } from "@/lib/admin-access";
+import { canSendAlertMail } from "@/lib/alerts/mail";
+import { alertRulesByKey } from "@/lib/alerts/rules";
+import { readAlertSettings } from "@/lib/alerts/settings";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
 import { filterCampaigns, getAdminScope, loadWebshops } from "@/lib/webshops";
 
@@ -59,6 +63,9 @@ export default async function AdminClientDetail({ params, searchParams }: Client
         take: 1000,
       },
       _count: { select: { campaigns: true } },
+      owner: { select: { email: true } },
+      alertSettings: { select: { enabled: true, recipients: true, rules: true, lastDigestAt: true } },
+      alertEvents: { orderBy: { triggeredAt: "desc" }, take: 20, select: { id: true, ruleKey: true, severity: true, title: true, triggeredAt: true, sentAt: true } },
     },
   });
 
@@ -124,6 +131,17 @@ export default async function AdminClientDetail({ params, searchParams }: Client
           <label className="module-setting-option"><span><strong>E-mailcampagnestatistieken</strong><small>Toon campagne-KPI’s en campagneoverzichten voor deze klant.</small></span><input defaultChecked={dashboardModules.campaignStats} name="campaignStats" type="checkbox" /></label>
           <button className="button button-primary" type="submit">Instellingen opslaan</button>
         </form>
+      </section>
+
+      <section className="panel table-panel" id="alerts">
+        <div className="panel-heading"><div><p className="eyebrow">Signalering</p><h2>E-mailalerts</h2></div><span className="tab">{tenant.alertSettings?.enabled ? "Aan" : "Uit"}</span></div>
+        <AdminAlerts
+          events={tenant.alertEvents.map((event) => ({ id: event.id, ruleLabel: alertRulesByKey.get(event.ruleKey)?.label ?? event.ruleKey, severity: event.severity, title: event.title, triggeredAt: event.triggeredAt.toISOString(), sentAt: event.sentAt?.toISOString() ?? null }))}
+          initial={readAlertSettings(tenant.alertSettings, tenant.owner ? [tenant.owner.email] : [])}
+          lastDigestAt={tenant.alertSettings?.lastDigestAt?.toISOString() ?? null}
+          mailConfigured={canSendAlertMail()}
+          tenantId={tenant.id}
+        />
       </section>
 
       <section className="panel table-panel" id="webshops">

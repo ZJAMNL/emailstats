@@ -32,44 +32,50 @@ model User {
 }
 
 model Tenant {
-  id           String               @id @default(cuid())
-  name         String
-  slug         String               @unique
-  logoDataUrl  String?              @db.Text
-  status       String               @default("active")
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  settings     Json                 @default("{}")
+  id            String               @id @default(cuid())
+  name          String
+  slug          String               @unique
+  logoDataUrl   String?              @db.Text
+  status        String               @default("active")
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  settings      Json                 @default("{}")
   /// The beheerder responsible for this customer. Without one, only superbeheerders see it.
-  ownerId      String?
-  owner        User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  users        User[]               @relation("TenantUsers")
-  campaigns    Campaign[]
-  copernica    CopernicaConnection?
-  selections   CopernicaSelection[]
-  rfmConfig    RfmConfig?
-  rfmScores    RfmProfileScore[]
-  rfmSnapshots RfmSegmentSnapshot[]
-  webshops     Webshop[]
-  rfmWrites    RfmWriteBack[]
+  ownerId       String?
+  owner         User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  users         User[]               @relation("TenantUsers")
+  campaigns     Campaign[]
+  copernica     CopernicaConnection?
+  selections    CopernicaSelection[]
+  rfmConfig     RfmConfig?
+  rfmScores     RfmProfileScore[]
+  rfmSnapshots  RfmSegmentSnapshot[]
+  webshops      Webshop[]
+  rfmWrites     RfmWriteBack[]
+  alertSettings AlertSettings?
+  alertEvents   AlertEvent[]
 
   @@index([ownerId])
 }
 
 model Campaign {
-  id          String    @id @default(cuid())
-  tenantId    String
-  name        String
-  status      String
-  sentCount   Int
-  openCount   Int
-  clickCount  Int
-  revenue     Decimal   @db.Decimal(18, 2)
-  sentAt      DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  copernicaId String
+  id               String    @id @default(cuid())
+  tenantId         String
+  name             String
+  status           String
+  sentCount        Int
+  openCount        Int
+  clickCount       Int
+  /// Unique bounces (Copernica "errors"), unsubscribes and spam complaints ("abuses").
+  bounceCount      Int       @default(0)
+  unsubscribeCount Int       @default(0)
+  complaintCount   Int       @default(0)
+  revenue          Decimal   @db.Decimal(18, 2)
+  sentAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  copernicaId      String
 
   @@unique([tenantId, copernicaId])
   @@index([tenantId, createdAt])
@@ -211,4 +217,35 @@ model RfmWriteBack {
   tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([tenantId, copernicaProfileId])
+}
+
+/// E-mail alerts for one customer: who receives the daily digest and which rules apply.
+model AlertSettings {
+  tenantId     String    @id
+  enabled      Boolean   @default(false)
+  recipients   String[]  @default([])
+  /// Per rule key: { enabled, ...thresholds }. Missing keys fall back to the defaults in src/lib/alerts/rules.ts.
+  rules        Json      @default("{}")
+  lastDigestAt DateTime?
+  updatedAt    DateTime  @updatedAt
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+/// One triggered alert. Also the memory for the cooldown, so the same alert is not repeated daily.
+model AlertEvent {
+  id          String    @id @default(cuid())
+  tenantId    String
+  ruleKey     String
+  /// What the alert is about (selection id, campaign id, ...), for de-duplication.
+  subjectKey  String
+  severity    String
+  title       String
+  detail      String
+  value       Float?
+  triggeredAt DateTime  @default(now())
+  sentAt      DateTime?
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, ruleKey, subjectKey, triggeredAt])
+  @@index([tenantId, triggeredAt])
 }
