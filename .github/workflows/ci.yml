@@ -19,6 +19,7 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Also generates the Prisma client (postinstall), which typecheck and lint need.
       - name: Install dependencies
         run: npm ci
 
@@ -33,3 +34,47 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Production runs `prisma migrate deploy` during the Vercel build, so a broken migration
+  # must fail here first: apply every migration to an empty Postgres and check that the
+  # result matches schema.prisma exactly.
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: emailstats
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/emailstats
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate schema
+        run: npx prisma validate
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Check schema matches migrations
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
