@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { compare } from "bcryptjs";
 import { getPrismaClient } from "./prisma";
-import { createSession, type SessionRole } from "./session";
+import { createSession, dashboardPath, type SessionRole } from "./session";
 
 const demoAccounts = {
   "admin@employ-mail.nl": {
     id: "admin-1",
     name: "Jasper de Vries",
-    role: "admin" as const,
+    role: "superadmin" as const,
     tenantId: "platform",
     password: process.env.DEMO_ADMIN_PASSWORD ?? "admin-demo-2026",
   },
@@ -35,8 +35,8 @@ export async function signInAction(formData: FormData) {
       redirect("/login?error=invalid-credentials");
     }
 
-    if (user && await compare(password, user.passwordHash) && (user.role === "ADMIN" || user.tenant?.status === "active")) {
-      const role: SessionRole = user.role === "ADMIN" ? "admin" : "customer";
+    if (user && await compare(password, user.passwordHash) && (user.role !== "CUSTOMER" || user.tenant?.status === "active")) {
+      const role: SessionRole = user.role === "SUPERADMIN" ? "superadmin" : user.role === "ADMIN" ? "admin" : "customer";
       await createSession({
         userId: user.id,
         email: user.email,
@@ -44,7 +44,7 @@ export async function signInAction(formData: FormData) {
         tenantId: user.tenantId ?? "platform",
         name: user.name,
       });
-      redirect(role === "admin" ? "/dashboard/admin" : "/dashboard/customer");
+      redirect(dashboardPath(role));
     }
 
     redirect("/login?error=invalid-credentials");
@@ -68,7 +68,7 @@ export async function signInAction(formData: FormData) {
     name: account.name,
   });
 
-  redirect(account.role === "admin" ? "/dashboard/admin" : "/dashboard/customer");
+  redirect(dashboardPath(account.role));
 }
 
 export function getDemoAccounts() {

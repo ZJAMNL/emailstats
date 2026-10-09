@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signInAction } from "@/app/actions";
-import { getSession } from "@/lib/session";
+import { dashboardPath, getSession } from "@/lib/session";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const session = await getSession();
   if (session) {
-    redirect(session.role === "admin" ? "/dashboard/admin" : "/dashboard/customer");
+    redirect(dashboardPath(session.role));
   }
 
   const { error, notice } = await searchParams;

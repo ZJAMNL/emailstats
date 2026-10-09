@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum Role {
+  SUPERADMIN
   ADMIN
   CUSTOMER
 }
@@ -18,10 +19,12 @@ model User {
   name         String
   role         Role          @default(CUSTOMER)
   tenantId     String?
-  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant?       @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: Cascade)
   passwordHash String
   allWebshops  Boolean       @default(true)
   webshops     UserWebshop[]
+  /// Customers (tenants) this beheerder manages; only used for ADMIN and SUPERADMIN users.
+  ownedTenants Tenant[]      @relation("TenantOwner")
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -37,7 +40,10 @@ model Tenant {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   settings     Json                 @default("{}")
-  users        User[]
+  /// The beheerder responsible for this customer. Without one, only superbeheerders see it.
+  ownerId      String?
+  owner        User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  users        User[]               @relation("TenantUsers")
   campaigns    Campaign[]
   copernica    CopernicaConnection?
   selections   CopernicaSelection[]
@@ -46,6 +52,8 @@ model Tenant {
   rfmSnapshots RfmSegmentSnapshot[]
   webshops     Webshop[]
   rfmWrites    RfmWriteBack[]
+
+  @@index([ownerId])
 }
 
 model Campaign {

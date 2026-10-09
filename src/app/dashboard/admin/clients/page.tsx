@@ -5,13 +5,13 @@ import { ClientEditDialog } from "@/components/client-edit-dialog";
 import { CreateCustomerDialog } from "@/components/create-customer-dialog";
 import { impersonateCustomerAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireAdmin, tenantWhere, type AdminSession } from "@/lib/admin-access";
 import { readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
 type ClientPageProps = {
-  searchParams: Promise<{ q?: string; error?: string; notice?: string }>;
+  searchParams: Promise<{ q?: string; beheerder?: string; error?: string; notice?: string }>;
 };
 
 const noticeText: Record<string, string> = {
@@ -31,18 +31,22 @@ const errorText: Record<string, string> = {
   "invite-failed": "De klant is aangemaakt, maar de uitnodiging kon niet worden verstuurd. Probeer het opnieuw via Aanpassen → Inloglink mailen.",
   "login-link-failed": "De inloglink kon niet worden verstuurd. Controleer de Resend-koppeling en probeer het opnieuw.",
   "impersonation-failed": "Deze klant kan niet worden geopend. Controleer of het account actief is.",
+  "invalid-owner": "Kies een bestaande beheerder voor deze klant.",
 };
 
 export default async function AdminClients({ searchParams }: ClientPageProps) {
-  await requireRole("admin");
+  const session = await requireAdmin();
+  const isSuperAdmin = session.role === "superadmin";
   const params = await searchParams;
   const search = params.q?.trim() ?? "";
+  const ownerFilter = isSuperAdmin ? params.beheerder ?? "" : "";
   let clients: Awaited<ReturnType<typeof loadClients>> = [];
+  let owners: Awaited<ReturnType<typeof loadOwners>> = [];
   let databaseUnavailable = false;
 
   if (process.env.DATABASE_URL) {
     try {
-      clients = await loadClients(search);
+      [clients, owners] = await Promise.all([loadClients(session, search, ownerFilter), isSuperAdmin ? loadOwners() : Promise.resolve([])]);
     } catch {
       databaseUnavailable = true;
     }
@@ -51,7 +55,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
   }
 
   return (
-    <DashboardShell role="admin" title="Klantenbeheer" subtitle="Beheer klantaccounts, toegang en Copernica-koppelingen.">
+    <DashboardShell role="admin" title="Klantenbeheer" subtitle={isSuperAdmin ? "Alle klanten van alle beheerders: accounts, toegang en Copernica-koppelingen." : "Beheer je klantaccounts, toegang en Copernica-koppelingen."}>
       {params.notice && noticeText[params.notice] ? <p className="form-success" role="status">{noticeText[params.notice]}</p> : null}
       {params.error && errorText[params.error] ? <p className="form-error" role="alert">{errorText[params.error]}</p> : null}
       {databaseUnavailable ? <p className="form-error" role="status">Klantbeheer is nog niet beschikbaar: configureer en migreer eerst de PostgreSQL-database (`DATABASE_URL`).</p> : null}
@@ -60,9 +64,10 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
         <form className="search-box" action="/dashboard/admin/clients" role="search">
           <Search size={16} />
           <input aria-label="Zoek klant" name="q" placeholder="Zoek klant" defaultValue={search} />
+          {isSuperAdmin ? <select aria-label="Filter op beheerder" className="owner-filter" name="beheerder" defaultValue={ownerFilter}><option value="">Alle beheerders</option><option value="geen">Niet toegewezen</option>{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select> : null}
           <button className="button button-secondary" type="submit">Zoeken</button>
         </form>
-        <CreateCustomerDialog />
+        <CreateCustomerDialog owners={isSuperAdmin ? owners.map(({ id, name }) => ({ id, name })) : null} defaultOwnerId={session.userId} />
       </section>
 
       <section className="client-grid" aria-label="Klanten">
@@ -82,6 +87,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
               <div className="client-widget-header">
                 <div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div>
                 <h2 className="client-widget-name">{client.name}</h2>
+                {isSuperAdmin ? <span className={`client-owner-chip${client.owner ? "" : " is-unassigned"}`} title="Beheerder">{client.owner?.name ?? "Niet toegewezen"}</span> : null}
                 <span className={`selection-widget-dot${client.status === "active" ? "" : " is-inactive"}`} aria-label={client.status === "active" ? "Actief" : "Inactief"} />
               </div>
               <strong className="selection-widget-value">{(showProfiles ? profileTotal : client._count.campaigns).toLocaleString("nl-NL")}</strong>
@@ -103,7 +109,8 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
                 lastSyncedAt: client.copernica?.lastSyncedAt?.toISOString() ?? null,
                 selections: client.selections.map((selection) => ({ id: selection.id, name: selection.name, profileCount: selection.snapshots[0]?.profileCount ?? null })),
                 modules,
-              }} />
+                ownerId: client.ownerId,
+              }} owners={isSuperAdmin ? owners.map(({ id, name }) => ({ id, name })) : null} />
               </div>
             </article>
           );
@@ -114,10 +121,15 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
   );
 }
 
-function loadClients(search: string) {
+function loadClients(session: AdminSession, search: string, ownerFilter: string) {
   return getPrismaClient().tenant.findMany({
-    where: search ? { name: { contains: search, mode: "insensitive" } } : undefined,
+    where: {
+      ...tenantWhere(session),
+      ...(ownerFilter ? { ownerId: ownerFilter === "geen" ? null : ownerFilter } : {}),
+      ...(search ? { name: { contains: search, mode: "insensitive" as const } } : {}),
+    },
     include: {
+      owner: { select: { name: true } },
       users: { where: { role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, take: 1 },
       _count: { select: { campaigns: true } },
       copernica: true,
@@ -129,6 +141,10 @@ function loadClients(search: string) {
     },
     orderBy: { name: "asc" },
   });
+}
+
+function loadOwners() {
+  return getPrismaClient().user.findMany({ where: { role: { in: ["ADMIN", "SUPERADMIN"] } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 
 const dayMs = 24 * 60 * 60 * 1000;

@@ -1,7 +1,7 @@
 import { CalendarDays } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { getPrismaClient } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireAdmin, tenantWhere, type AdminSession } from "@/lib/admin-access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ type CampaignPageProps = {
 };
 
 export default async function AdminCampaigns({ searchParams }: CampaignPageProps) {
-  await requireRole("admin");
+  const session = await requireAdmin();
   const params = await searchParams;
   const from = validDate(params.from) ? params.from ?? "" : "";
   const to = validDate(params.to) ? params.to ?? "" : "";
@@ -19,7 +19,7 @@ export default async function AdminCampaigns({ searchParams }: CampaignPageProps
 
   if (process.env.DATABASE_URL) {
     try {
-      campaigns = await loadCampaigns(from, to);
+      campaigns = await loadCampaigns(session, from, to);
     } catch {
       databaseUnavailable = true;
     }
@@ -28,7 +28,7 @@ export default async function AdminCampaigns({ searchParams }: CampaignPageProps
   }
 
   return (
-    <DashboardShell role="admin" title="Campagnes over alle klanten" subtitle="Vergelijk verzonden mailings en resultaten per tenant.">
+    <DashboardShell role="admin" title={session.role === "superadmin" ? "Campagnes over alle klanten" : "Campagnes van mijn klanten"} subtitle="Vergelijk verzonden mailings en resultaten per tenant.">
       {databaseUnavailable ? <p className="form-error" role="status">Campagnegegevens zijn nog niet beschikbaar: configureer en migreer eerst PostgreSQL.</p> : null}
       <section className="panel campaign-filter-panel">
         <div className="panel-heading"><div><p className="eyebrow">Periode</p><h2>Filter campagnes</h2></div><CalendarDays size={19} /></div>
@@ -46,14 +46,14 @@ export default async function AdminCampaigns({ searchParams }: CampaignPageProps
   );
 }
 
-function loadCampaigns(from: string, to: string) {
+function loadCampaigns(session: AdminSession, from: string, to: string) {
   const sentAt = from || to ? {
     ...(from ? { gte: new Date(`${from}T00:00:00.000Z`) } : {}),
     ...(to ? { lte: new Date(`${to}T23:59:59.999Z`) } : {}),
   } : undefined;
 
   return getPrismaClient().campaign.findMany({
-    where: sentAt ? { sentAt } : undefined,
+    where: { tenant: tenantWhere(session), ...(sentAt ? { sentAt } : {}) },
     include: { tenant: { select: { name: true } } },
     orderBy: [{ sentAt: "desc" }, { tenant: { name: "asc" } }],
     take: 1000,

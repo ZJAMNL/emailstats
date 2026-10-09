@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export type SessionRole = "admin" | "customer";
+export type SessionRole = "superadmin" | "admin" | "customer";
 
 export type Session = {
   userId: string;
@@ -14,6 +14,7 @@ export type Session = {
     userId: string;
     email: string;
     name: string;
+    role?: SessionRole;
   };
 };
 
@@ -82,4 +83,12 @@ export async function requireRole(role: SessionRole) {
   }
 
   return session;
+}
+
+export function isAdminRole(role: SessionRole) {
+  return role === "admin" || role === "superadmin";
+}
+
+export function dashboardPath(role: SessionRole) {
+  return isAdminRole(role) ? "/dashboard/admin" : "/dashboard/customer";
 }

@@ -10,7 +10,7 @@ import { MetricsGrid } from "@/components/metrics-grid";
 import { SelectionHistoryImport } from "@/components/selection-history-import";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requireTenantAdmin } from "@/lib/admin-access";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
 import { filterCampaigns, getAdminScope, loadWebshops } from "@/lib/webshops";
 
@@ -25,10 +25,10 @@ const selectionColors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", 
 const integerFormat = new Intl.NumberFormat("nl-NL");
 
 export default async function AdminClientDetail({ params, searchParams }: ClientDetailProps) {
-  await requireRole("admin");
   const { tenantId } = await params;
   const query = await searchParams;
   if (!process.env.DATABASE_URL) notFound();
+  await requireTenantAdmin(tenantId);
 
   const [{ allowed: scopes, current: scope }, webshops] = await Promise.all([getAdminScope(tenantId, query.webshop), loadWebshops(tenantId)]);
   const tenant = await getPrismaClient().tenant.findUnique({

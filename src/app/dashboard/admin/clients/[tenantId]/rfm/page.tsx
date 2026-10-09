@@ -12,16 +12,16 @@ import { getPrismaClient } from "@/lib/prisma";
 import { buildRfmMonthlyChange, buildRfmTrend, loadRfmSnapshots } from "@/lib/rfm/history";
 import { loadMigrationMatrix, settingsFromConfig, type RfmRunSummary } from "@/lib/rfm/run";
 import { rfmSegments } from "@/lib/rfm/segments";
-import { requireRole } from "@/lib/session";
+import { requireTenantAdmin } from "@/lib/admin-access";
 
 export const dynamic = "force-dynamic";
 // Calculations fetch every order from Copernica and can take a while for large databases.
 export const maxDuration = 300;
 
 export default async function AdminClientRfm({ params }: { params: Promise<{ tenantId: string }> }) {
-  await requireRole("admin");
   const { tenantId } = await params;
   if (!process.env.DATABASE_URL) notFound();
+  await requireTenantAdmin(tenantId);
 
   const prisma = getPrismaClient();
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true, name: true, copernica: { select: { databaseId: true } }, rfmConfig: true } });

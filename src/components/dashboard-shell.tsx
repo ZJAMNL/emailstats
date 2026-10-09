@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { BarChart3, BookOpen, Database, Gem, LayoutDashboard, LogOut, Mail, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, BookOpen, Database, Gem, LayoutDashboard, LogOut, Mail, ShieldCheck, UserCog, Users } from "lucide-react";
 import { signOutAction, stopImpersonationAction } from "@/app/actions";
+import { requireAdmin } from "@/lib/admin-access";
 import { getSession } from "@/lib/session";
 import { isRfmVisibleToCustomer } from "@/lib/rfm/history";
 import { getTenantDashboardModules } from "@/lib/tenant-settings";
@@ -20,6 +21,7 @@ export async function DashboardShell({
   role: "admin" | "customer";
 }) {
   const session = await getSession();
+  const adminRole = role === "admin" ? (await requireAdmin()).role : null;
   const modules = role === "customer" && session?.tenantId && process.env.DATABASE_URL
     ? await getTenantDashboardModules(session.tenantId).catch(() => null)
     : null;
@@ -35,6 +37,7 @@ export async function DashboardShell({
     { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Beheer", icon: role === "admin" ? Users : Database },
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
     ...(showRfm && canManage ? [{ href: "/dashboard/customer/rfm", label: "RFM-model", icon: Gem }] : []),
+    ...(adminRole === "superadmin" ? [{ href: "/dashboard/admin/beheerders", label: "Beheerders", icon: UserCog }] : []),
     ...(role === "customer" ? [{ href: "/dashboard/customer/uitleg", label: "Uitleg modellen", icon: BookOpen }] : []),
   ].filter((link) => (link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false) && (link.href !== "/dashboard/customer/data" || canManage));
 
@@ -51,7 +54,7 @@ export async function DashboardShell({
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="security-pill"><ShieldCheck size={14} />{role === "admin" ? "Beheerder" : "Klantomgeving"}</div>
+          <div className="security-pill"><ShieldCheck size={14} />{adminRole === "superadmin" ? "Superbeheerder" : adminRole === "admin" ? "Beheerder" : "Klantomgeving"}</div>
           <form action={signOutAction}>
             <button type="submit" className="logout-button"><LogOut size={16} /> Uitloggen</button>
           </form>

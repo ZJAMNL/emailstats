@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Eye, KeyRound, Pencil, Trash2, X } from "lucide-react";
 import { deleteCustomerAction, impersonateCustomerAction, sendLoginLinkAction, updateCustomerAction } from "@/app/actions";
+import { OwnerSelect, type OwnerOption } from "@/components/create-customer-dialog";
 import type { TenantDashboardModules } from "@/lib/tenant-settings";
 
 export type ClientEditDialogClient = {
@@ -18,9 +19,10 @@ export type ClientEditDialogClient = {
   lastSyncedAt: string | null;
   selections: { id: string; name: string; profileCount: number | null }[];
   modules: TenantDashboardModules;
+  ownerId: string | null;
 };
 
-export function ClientEditDialog({ client }: { client: ClientEditDialogClient }) {
+export function ClientEditDialog({ client, owners }: { client: ClientEditDialogClient; owners: OwnerOption[] | null }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const titleId = `edit-client-${client.id}`;
@@ -60,6 +62,7 @@ export function ClientEditDialog({ client }: { client: ClientEditDialogClient })
             <input type="hidden" name="tenantId" value={client.id} />
             <label>Bedrijfsnaam<input name="name" defaultValue={client.name} maxLength={120} required /></label>
             {client.customerEmail ? <label>Inlog-e-mailadres<input name="email" type="email" defaultValue={client.customerEmail} maxLength={254} required /></label> : <p>Voor deze klant bestaat nog geen klantlogin.</p>}
+            {owners ? <OwnerSelect defaultValue={client.ownerId} owners={owners} /> : null}
             <label>Logo uploaden<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPEG of WebP · maximaal 512 KB</small></label>
             {client.logoDataUrl ? <label className="remove-logo"><input name="removeLogo" type="checkbox" /> Huidig logo verwijderen</label> : null}
             <fieldset className="module-toggle-group">

@@ -17,8 +17,8 @@ async function seedAdmin() {
   try {
     await prisma.user.upsert({
       where: { email },
-      create: { email, name, passwordHash: await hash(password, 12), role: "ADMIN", tenantId: null },
-      update: { name, passwordHash: await hash(password, 12), role: "ADMIN", tenantId: null },
+      create: { email, name, passwordHash: await hash(password, 12), role: "SUPERADMIN", tenantId: null },
+      update: { name, passwordHash: await hash(password, 12), role: "SUPERADMIN", tenantId: null },
     });
   } finally {
     await prisma.$disconnect();
@@ -26,6 +26,6 @@ async function seedAdmin() {
 }
 
 seedAdmin().catch((error: unknown) => {
-  console.error("Unable to seed admin account.", error instanceof Error ? error.message : "Unknown error.");
+  console.error("Unable to seed superadmin account.", error instanceof Error ? error.message : "Unknown error.");
   process.exitCode = 1;
 });

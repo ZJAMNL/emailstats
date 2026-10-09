@@ -4,7 +4,10 @@ import { useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { createCustomerAction } from "@/app/actions";
 
-export function CreateCustomerDialog() {
+export type OwnerOption = { id: string; name: string };
+
+/** `owners` is only passed for superbeheerders, who choose the beheerder; beheerders always own what they create. */
+export function CreateCustomerDialog({ owners, defaultOwnerId }: { owners: OwnerOption[] | null; defaultOwnerId: string }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [sendInvite, setSendInvite] = useState(true);
@@ -30,6 +33,7 @@ export function CreateCustomerDialog() {
         <form action={createCustomerAction} className="customer-form customer-dialog-form">
           <label>Bedrijfsnaam<input name="name" autoComplete="organization" maxLength={120} required /></label>
           <label>Logo<input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /><small>PNG, JPEG of WebP · maximaal 512 KB</small></label>
+          {owners ? <OwnerSelect defaultValue={defaultOwnerId} owners={owners} /> : null}
           <label>Inlog-e-mailadres<input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
           <label className="invite-option"><input checked={sendInvite} name="sendInvite" onChange={(event) => setSendInvite(event.target.checked)} type="checkbox" /> Stuur de klant een e-mail om zelf een wachtwoord in te stellen</label>
           {sendInvite ? null : <label>Tijdelijk wachtwoord<input name="password" type="password" autoComplete="new-password" minLength={12} required /><small>Minimaal 12 tekens. Deel dit wachtwoord veilig met de klant.</small></label>}
@@ -45,5 +49,17 @@ export function CreateCustomerDialog() {
         </form>
       </dialog>
     </>
+  );
+}
+
+export function OwnerSelect({ owners, defaultValue }: { owners: OwnerOption[]; defaultValue: string | null }) {
+  return (
+    <label>Beheerder
+      <select name="ownerId" defaultValue={defaultValue ?? ""}>
+        <option value="">Niet toegewezen (alleen superbeheerders)</option>
+        {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}
+      </select>
+      <small>Alleen deze beheerder en superbeheerders zien de gegevens van deze klant.</small>
+    </label>
   );
 }

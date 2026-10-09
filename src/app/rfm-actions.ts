@@ -5,14 +5,16 @@ import { getTenantCopernica } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { listCollectionFields, listCollections, sampleOrders } from "@/lib/rfm/copernica-orders";
 import { calculateRfm, runRfm, type RfmModelSettings, type RfmRunSummary } from "@/lib/rfm/run";
-import { requireRole } from "@/lib/session";
+import { adminForTenant } from "@/lib/admin-access";
 import { CopernicaError } from "@/lib/copernica";
 import { ensureRfmFields, writeRfmToCopernica, type WriteBackSummary } from "@/lib/rfm/writeback";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
+const noAccess = { ok: false as const, error: "Je hebt geen toegang tot deze klant." };
+
 async function withCopernica<T>(tenantId: string, callback: (jwt: string, databaseId: string) => Promise<T>): Promise<Result<T>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     const connected = await getTenantCopernica(tenantId);
     if (!connected) return { ok: false, error: "Deze klant heeft nog geen Copernica-koppeling." };
@@ -34,7 +36,7 @@ export async function rfmCollectionDetailsAction(tenantId: string, collectionId:
 }
 
 export async function rfmPreviewAction(tenantId: string, input: RfmModelSettings): Promise<Result<RfmRunSummary>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const settings = validateSettings(input);
   if (!settings) return { ok: false, error: "Kies een collectie, een datumveld en een bedragveld." };
   try {
@@ -46,7 +48,7 @@ export async function rfmPreviewAction(tenantId: string, input: RfmModelSettings
 }
 
 export async function rfmSaveAction(tenantId: string, input: RfmModelSettings & { collectionName: string; customerVisible: boolean }): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const settings = validateSettings(input);
   if (!settings) return { ok: false, error: "Kies een collectie, een datumveld en een bedragveld." };
   const data = { ...settings, collectionName: String(input.collectionName ?? "").slice(0, 200), customerVisible: input.customerVisible === true, enabled: true };
@@ -63,7 +65,7 @@ export async function rfmSaveAction(tenantId: string, input: RfmModelSettings & 
 }
 
 export async function rfmRunAction(tenantId: string): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     await runRfm(tenantId);
   } catch {
@@ -75,14 +77,14 @@ export async function rfmRunAction(tenantId: string): Promise<Result<null>> {
 }
 
 export async function rfmVisibilityAction(tenantId: string, customerVisible: boolean): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   await getPrismaClient().rfmConfig.update({ where: { tenantId }, data: { customerVisible: customerVisible === true } });
   refresh();
   return { ok: true, data: null };
 }
 
 export async function rfmDisableAction(tenantId: string): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const prisma = getPrismaClient();
   // Profile-level scores are removed when the model is switched off; aggregated history stays.
   await prisma.$transaction([
@@ -117,7 +119,7 @@ function validateSettings(input: RfmModelSettings): RfmModelSettings | null {
 // ---------------------------------------------------------------- write-back to Copernica
 
 export async function rfmEnsureFieldsAction(tenantId: string): Promise<Result<{ created: string[]; existing: string[] }>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     const result = await ensureRfmFields(tenantId);
     refresh();
@@ -129,14 +131,14 @@ export async function rfmEnsureFieldsAction(tenantId: string): Promise<Result<{ 
 }
 
 export async function rfmWriteBackSettingAction(tenantId: string, enabled: boolean): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   await getPrismaClient().rfmConfig.update({ where: { tenantId }, data: { writeBackEnabled: enabled === true } });
   refresh();
   return { ok: true, data: null };
 }
 
 export async function rfmWriteBackNowAction(tenantId: string): Promise<Result<WriteBackSummary>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     // Leave headroom under the page's 300-second limit; the rest follows on the next run.
     const summary = await writeRfmToCopernica(tenantId, Date.now() + 240_000);

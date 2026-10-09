@@ -8,6 +8,7 @@ import { hash } from "bcryptjs";
 import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
 import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
+import { adminForTenant, requireAdmin, type AdminSession } from "@/lib/admin-access";
 import { createSession, requireRole, requireSession } from "@/lib/session";
 import { sendDemoRequest } from "@/lib/demo-request";
 import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
@@ -26,10 +27,10 @@ export async function signOutAction() {
 }
 
 export async function impersonateCustomerAction(formData: FormData) {
-  const admin = await requireRole("admin");
   const tenantId = readField(formData, "tenantId");
+  const admin = await adminForTenant(tenantId);
 
-  if (!tenantId) redirect("/dashboard/admin/clients?error=impersonation-failed");
+  if (!admin) redirect("/dashboard/admin/clients?error=impersonation-failed");
 
   try {
     const tenant = await getPrismaClient().tenant.findFirst({
@@ -47,7 +48,7 @@ export async function impersonateCustomerAction(formData: FormData) {
       role: "customer",
       tenantId: tenant.id,
       name: customer.name,
-      impersonator: { userId: admin.userId, email: admin.email, name: admin.name },
+      impersonator: { userId: admin.userId, email: admin.email, name: admin.name, role: admin.role },
     });
   } catch {
     redirect("/dashboard/admin/clients?error=impersonation-failed");
@@ -60,10 +61,11 @@ export async function stopImpersonationAction() {
   const session = await requireSession();
   if (session.role !== "customer" || !session.impersonator) redirect("/dashboard/customer");
 
+  // The role is checked against the database again on every admin page (requireAdmin).
   await createSession({
     userId: session.impersonator.userId,
     email: session.impersonator.email,
-    role: "admin",
+    role: session.impersonator.role ?? "admin",
     tenantId: "platform",
     name: session.impersonator.name,
   });
@@ -72,7 +74,7 @@ export async function stopImpersonationAction() {
 }
 
 export async function createCustomerAction(formData: FormData) {
-  await requireRole("admin");
+  const admin = await requireAdmin();
 
   const name = readField(formData, "name");
   const email = readField(formData, "email").toLowerCase();
@@ -84,6 +86,8 @@ export async function createCustomerAction(formData: FormData) {
     redirect("/dashboard/admin/clients?error=invalid-customer");
   }
   if (logoDataUrl === false) redirect("/dashboard/admin/clients?error=invalid-logo");
+  const ownerId = await readOwner(admin, formData);
+  if (ownerId === false) redirect("/dashboard/admin/clients?error=invalid-owner");
 
   let createdUser: { id: string; email: string; name: string; passwordHash: string };
   try {
@@ -93,7 +97,7 @@ export async function createCustomerAction(formData: FormData) {
 
     createdUser = await prisma.$transaction(async (transaction) => {
       const tenant = await transaction.tenant.create({
-        data: { name, slug, logoDataUrl: logoDataUrl ?? null, settings: { dashboardModules: readDashboardModules(formData) } },
+        data: { name, slug, ownerId, logoDataUrl: logoDataUrl ?? null, settings: { dashboardModules: readDashboardModules(formData) } },
       });
       return transaction.user.create({
         data: { name, email, passwordHash, tenantId: tenant.id, role: "CUSTOMER" },
@@ -116,24 +120,26 @@ export async function createCustomerAction(formData: FormData) {
 }
 
 export async function updateCustomerAction(formData: FormData) {
-  await requireRole("admin");
-
   const tenantId = readField(formData, "tenantId");
+  const admin = await adminForTenant(tenantId);
   const name = readField(formData, "name");
   const email = readField(formData, "email").toLowerCase();
   const logoDataUrl = await readLogo(formData);
 
-  if (!tenantId || !name || !email.includes("@")) {
+  if (!admin || !name || !email.includes("@")) {
     redirect("/dashboard/admin/clients?error=invalid-customer");
   }
   if (logoDataUrl === false) redirect("/dashboard/admin/clients?error=invalid-logo");
+  // Only superbeheerders move a customer to another beheerder.
+  const ownerId = admin.role === "superadmin" && formData.has("ownerId") ? await readOwner(admin, formData) : undefined;
+  if (ownerId === false) redirect("/dashboard/admin/clients?error=invalid-owner");
 
   try {
     const prisma = getPrismaClient();
     await prisma.$transaction(async (transaction) => {
       await transaction.tenant.update({
         where: { id: tenantId },
-        data: { name, ...(logoDataUrl !== undefined ? { logoDataUrl } : {}) },
+        data: { name, ...(logoDataUrl !== undefined ? { logoDataUrl } : {}), ...(ownerId !== undefined ? { ownerId } : {}) },
       });
       // Only the primary login; additional users are managed under Gebruikers.
       const primary = await transaction.user.findFirst({ where: { tenantId, role: "CUSTOMER" }, orderBy: { createdAt: "asc" }, select: { id: true } });
@@ -148,10 +154,8 @@ export async function updateCustomerAction(formData: FormData) {
 }
 
 export async function deleteCustomerAction(formData: FormData) {
-  await requireRole("admin");
-
   const tenantId = readField(formData, "tenantId");
-  if (!tenantId) redirect("/dashboard/admin/clients?error=invalid-customer");
+  if (!(await adminForTenant(tenantId))) redirect("/dashboard/admin/clients?error=invalid-customer");
 
   try {
     await getPrismaClient().tenant.delete({ where: { id: tenantId } });
@@ -163,12 +167,13 @@ export async function deleteCustomerAction(formData: FormData) {
 }
 
 export async function sendLoginLinkAction(formData: FormData) {
-  await requireRole("admin");
   const tenantId = readField(formData, "tenantId");
+  const admin = await adminForTenant(tenantId);
   const returnTo = readField(formData, "returnTo").startsWith("/dashboard/admin/") ? readField(formData, "returnTo") : "/dashboard/admin/clients";
   const separator = returnTo.includes("?") ? "&" : "?";
 
   try {
+    if (!admin) throw new Error("Not allowed.");
     const user = await getPrismaClient().user.findFirst({ where: { tenantId, role: "CUSTOMER" }, orderBy: { createdAt: "asc" } });
     if (!user) throw new Error("No customer login.");
     await sendPasswordMail(user, "invite", await getAppUrl());
@@ -185,7 +190,7 @@ export async function requestPasswordResetAction(formData: FormData) {
   if (email.includes("@") && process.env.DATABASE_URL) {
     try {
       const user = await getPrismaClient().user.findUnique({ where: { email }, include: { tenant: true } });
-      if (user && (user.role === "ADMIN" || user.tenant?.status === "active")) {
+      if (user && (user.role !== "CUSTOMER" || user.tenant?.status === "active")) {
         await sendPasswordMail(user, "reset", await getAppUrl());
       }
     } catch {
@@ -242,9 +247,8 @@ export async function setPasswordAction(formData: FormData) {
 }
 
 export async function updateTenantDashboardModulesAction(formData: FormData) {
-  await requireRole("admin");
   const tenantId = readField(formData, "tenantId");
-  if (!tenantId) redirect("/dashboard/admin/clients?error=invalid-customer");
+  if (!(await adminForTenant(tenantId))) redirect("/dashboard/admin/clients?error=invalid-customer");
 
   try {
     await saveTenantDashboardModules(tenantId, readDashboardModules(formData));
@@ -264,7 +268,7 @@ async function validHistoryScope(tenantId: string, scope: string) {
 }
 
 export async function previewSelectionHistoryAction(tenantId: string, csv: string, requestedScope = "all") {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return { ok: false as const, error: "Je hebt geen toegang tot deze klant." };
   const scope = await validHistoryScope(tenantId, String(requestedScope));
   if (!scope) return { ok: false as const, error: "Deze webshop bestaat niet." };
   if (typeof csv !== "string" || csv.length > maxHistoryCsvLength) return { ok: false as const, error: "Het bestand is te groot (maximaal 500 KB)." };
@@ -276,7 +280,7 @@ export async function previewSelectionHistoryAction(tenantId: string, csv: strin
 }
 
 export async function importSelectionHistoryAction(tenantId: string, csv: string, mapping: Record<string, string>, followSelections: boolean, requestedScope = "all") {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return { ok: false as const, error: "Je hebt geen toegang tot deze klant." };
   const scope = await validHistoryScope(tenantId, String(requestedScope));
   if (!scope) return { ok: false as const, error: "Deze webshop bestaat niet." };
   if (typeof csv !== "string" || csv.length > maxHistoryCsvLength) return { ok: false as const, error: "Het bestand is te groot (maximaal 500 KB)." };
@@ -411,6 +415,19 @@ export async function syncCampaignsAction(formData: FormData) {
 function readField(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * The beheerder a customer belongs to. Beheerders always own the customers they create;
+ * superbeheerders pick one (empty = no beheerder, visible to superbeheerders only).
+ * Returns false for an id that is not a beheerder.
+ */
+async function readOwner(admin: AdminSession, formData: FormData): Promise<string | null | false> {
+  if (admin.role !== "superadmin") return admin.userId;
+  const ownerId = readField(formData, "ownerId");
+  if (!ownerId) return null;
+  const owner = await getPrismaClient().user.findFirst({ where: { id: ownerId, role: { in: ["ADMIN", "SUPERADMIN"] } }, select: { id: true } });
+  return owner?.id ?? false;
 }
 
 function readDashboardModules(formData: FormData) {

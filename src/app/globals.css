@@ -260,6 +260,23 @@ td { color: #dfe9f5; }
 .client-widget-footer { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: auto; padding-top: 1rem; }
 .client-widget-edit { flex: 0 0 38px; width: 38px; height: 38px; }
 .selection-widget-dot.is-inactive { background: var(--muted); opacity: .5; }
+.client-owner-chip { flex: 0 1 auto; min-width: 0; max-width: 40%; overflow: hidden; padding: .2rem .55rem; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .7rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.client-owner-chip.is-unassigned { border-style: dashed; }
+.admin-table td { vertical-align: middle; }
+.admin-self { color: var(--muted); }
+.admin-inline-form { display: flex; align-items: center; gap: .5rem; }
+.admin-inline-form select { width: auto; min-height: 36px; }
+.admin-inline-form .button { min-height: 36px; padding: .3rem .75rem; font-size: .8rem; }
+.admin-row-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: .4rem; }
+.admin-delete { position: relative; }
+.admin-delete summary { list-style: none; cursor: pointer; }
+.admin-delete summary::-webkit-details-marker { display: none; }
+.admin-delete-form { position: absolute; right: 0; z-index: 5; display: grid; gap: .65rem; width: min(320px, 80vw); margin-top: .4rem; padding: .9rem; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-strong); box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+.admin-delete-form label { display: grid; gap: .35rem; color: var(--muted); font-size: .8rem; }
+.admin-create-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; align-items: end; }
+.admin-create-hint { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .8rem; }
+.admin-create-form .button { justify-self: start; }
+@media (max-width: 760px) { .admin-create-form { grid-template-columns: 1fr; } }
 .client-dialog-facts { display: grid; gap: .6rem; margin: 0 0 .5rem; }
 .client-dialog-facts div { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: .85rem; }
 .client-dialog-facts dd { margin: 0; color: var(--text); font-weight: 700; text-align: right; overflow-wrap: anywhere; }
@@ -303,6 +320,8 @@ td { color: #dfe9f5; }
 .customer-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: .9rem; }
 .customer-form label { display: grid; gap: .45rem; color: #d7e4f8; font-size: .82rem; font-weight: 700; }
 .customer-form input { width: 100%; min-width: 0; min-height: 42px; padding: 0 .75rem; border: 1px solid var(--border); border-radius: 9px; outline: none; background: rgba(255,255,255,.03); color: var(--text); }
+.customer-form select, .search-box select, .admin-form select { width: 100%; min-width: 0; min-height: 42px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 9px; outline: none; background: var(--panel-strong); color: var(--text); font: inherit; }
+.search-box .owner-filter { flex: 0 1 180px; width: auto; }
 .customer-form small { color: var(--muted); font-size: .7rem; font-weight: 400; line-height: 1.45; }
 .customer-form > .button { justify-self: start; }
 .form-success { padding: .8rem 1rem; border: 1px solid rgba(76,201,167,.25); border-radius: 10px; background: rgba(76,201,167,.07); color: var(--accent); }

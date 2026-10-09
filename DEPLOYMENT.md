@@ -37,7 +37,7 @@ CRON_SECRET=<willekeurige waarde; genereer met openssl rand -base64 32>
 
 De klant voert het eigen Copernica API-v4 token en database-ID in via de klantomgeving. Tokens worden versleuteld opgeslagen met `COPERNICA_TOKEN_ENCRYPTION_KEY` en worden niet naar de browser teruggestuurd.
 
-### Database en eerste beheerder
+### Database en eerste superbeheerder
 
 1. Maak PostgreSQL-databases aan, bijvoorbeeld via Neon of een andere Vercel Postgres-integratie. Gebruik **verschillende databases** voor Production en Preview; deel nooit productiegegevens met previews.
 2. Stel `DATABASE_URL` in voor zowel Production als Preview, elk met de eigen database.
@@ -47,13 +47,15 @@ De klant voert het eigen Copernica API-v4 token en database-ID in via de klantom
 npm run db:migrate
 ```
 
-4. Stel tijdelijk `ADMIN_EMAIL`, `ADMIN_NAME` en `ADMIN_PASSWORD` (minimaal 12 tekens) in je lokale, genegeerde environment in en bootstrap de eerste beheerder:
+4. Stel tijdelijk `ADMIN_EMAIL`, `ADMIN_NAME` en `ADMIN_PASSWORD` (minimaal 12 tekens) in je lokale, genegeerde environment in en bootstrap de eerste superbeheerder:
 
 ```bash
 npm run db:seed
 ```
 
-5. Verwijder de tijdelijke `ADMIN_PASSWORD`-waarde na de seed. De beheerder kan daarna klantaccounts aanmaken vanuit **Klanten**.
+5. Verwijder de tijdelijke `ADMIN_PASSWORD`-waarde na de seed. De superbeheerder kan daarna beheerders uitnodigen vanuit **Beheerders** en klantaccounts aanmaken vanuit **Klanten**.
+
+**Rollen:** een superbeheerder ziet alle klanten en beheert de beheerders. Een beheerder ziet alleen de klanten die aan die beheerder zijn toegewezen; klanten die een beheerder aanmaakt, horen automatisch bij die beheerder. Een superbeheerder kan een klant aan een andere beheerder toewijzen via **Klant aanpassen**.
 
 De API-synchronisatie slaat campagne-totalen en alleen de geselecteerde profiel-aantallen op. Een dagelijkse Vercel Cron legt de meetpunten vast; `CRON_SECRET` beschermt de cronroute.
 

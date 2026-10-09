@@ -7,10 +7,13 @@ import { getAppUrl } from "@/lib/app-url";
 import { countProfilesForWebshop, getTenantCopernica, listDatabaseFields, sampleProfileFieldValues } from "@/lib/copernica";
 import { sendPasswordMail } from "@/lib/password-reset";
 import { getPrismaClient } from "@/lib/prisma";
+import { adminForTenant } from "@/lib/admin-access";
 import { requireRole } from "@/lib/session";
 import { campaignMatchesWebshop, getAllowedScopes, SCOPE_COOKIE } from "@/lib/webshops";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+
+const noAccess = { ok: false as const, error: "Je hebt geen toegang tot deze klant." };
 
 export type WebshopInput = { id?: string; name: string; profileField: string; fieldValues: string[]; campaignTerms: string[] };
 export type TenantUserInput = { name: string; email: string; allWebshops: boolean; webshopIds: string[] };
@@ -28,7 +31,7 @@ function validateWebshop(input: WebshopInput) {
 // ---------------------------------------------------------------- webshops (admin)
 
 export async function webshopFieldsAction(tenantId: string): Promise<Result<{ id: string; name: string; type: string }[]>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     const connected = await getTenantCopernica(tenantId);
     if (!connected) return { ok: false, error: "Deze klant heeft nog geen Copernica-koppeling." };
@@ -39,7 +42,7 @@ export async function webshopFieldsAction(tenantId: string): Promise<Result<{ id
 }
 
 export async function webshopSampleValuesAction(tenantId: string, field: string): Promise<Result<{ value: string; count: number }[]>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     const connected = await getTenantCopernica(tenantId);
     if (!connected) return { ok: false, error: "Deze klant heeft nog geen Copernica-koppeling." };
@@ -50,7 +53,7 @@ export async function webshopSampleValuesAction(tenantId: string, field: string)
 }
 
 export async function webshopCheckAction(tenantId: string, input: WebshopInput): Promise<Result<{ profiles: number; campaigns: number; totalCampaigns: number }>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const webshop = validateWebshop(input);
   if (!webshop) return { ok: false, error: "Vul een naam, een profielveld en minstens één waarde in." };
   try {
@@ -67,7 +70,7 @@ export async function webshopCheckAction(tenantId: string, input: WebshopInput):
 }
 
 export async function saveWebshopAction(tenantId: string, input: WebshopInput): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const webshop = validateWebshop(input);
   if (!webshop) return { ok: false, error: "Vul een naam, een profielveld en minstens één waarde in." };
   const prisma = getPrismaClient();
@@ -87,7 +90,7 @@ export async function saveWebshopAction(tenantId: string, input: WebshopInput): 
 }
 
 export async function deleteWebshopAction(tenantId: string, webshopId: string): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const prisma = getPrismaClient();
   const webshop = await prisma.webshop.findFirst({ where: { id: webshopId, tenantId }, select: { id: true } });
   if (!webshop) return { ok: false, error: "Deze webshop bestaat niet meer." };
@@ -112,7 +115,7 @@ async function validateUserInput(tenantId: string, input: TenantUserInput) {
 }
 
 export async function createTenantUserAction(tenantId: string, input: TenantUserInput & { sendInvite: boolean }): Promise<Result<{ invited: boolean }>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const user = await validateUserInput(tenantId, input);
   if (!user) return { ok: false, error: "Vul een naam en een geldig e-mailadres in." };
   if (!user.allWebshops && !user.webshopIds.length) return { ok: false, error: "Kies ‘Alle webshops’ of minstens één webshop." };
@@ -151,7 +154,7 @@ export async function createTenantUserAction(tenantId: string, input: TenantUser
 }
 
 export async function updateTenantUserAction(tenantId: string, userId: string, input: TenantUserInput): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const user = await validateUserInput(tenantId, input);
   if (!user) return { ok: false, error: "Vul een naam en een geldig e-mailadres in." };
   if (!user.allWebshops && !user.webshopIds.length) return { ok: false, error: "Kies ‘Alle webshops’ of minstens één webshop." };
@@ -172,7 +175,7 @@ export async function updateTenantUserAction(tenantId: string, userId: string, i
 }
 
 export async function deleteTenantUserAction(tenantId: string, userId: string): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const prisma = getPrismaClient();
   const users = await prisma.user.findMany({ where: { tenantId, role: "CUSTOMER" }, select: { id: true } });
   if (!users.some((user) => user.id === userId)) return { ok: false, error: "Deze gebruiker bestaat niet meer." };
@@ -183,7 +186,7 @@ export async function deleteTenantUserAction(tenantId: string, userId: string): 
 }
 
 export async function sendUserLoginLinkAction(tenantId: string, userId: string): Promise<Result<null>> {
-  await requireRole("admin");
+  if (!(await adminForTenant(tenantId))) return noAccess;
   const user = await getPrismaClient().user.findFirst({ where: { id: userId, tenantId, role: "CUSTOMER" } });
   if (!user) return { ok: false, error: "Deze gebruiker bestaat niet meer." };
   try {
