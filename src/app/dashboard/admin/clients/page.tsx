@@ -1,11 +1,12 @@
-import { Database, Mail, Search } from "lucide-react";
+import { Database, Eye, Mail, Search } from "lucide-react";
 import Image from "next/image";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ClientEditDialog } from "@/components/client-edit-dialog";
 import { CreateCustomerDialog } from "@/components/create-customer-dialog";
+import { impersonateCustomerAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { readTenantDashboardModules } from "@/lib/tenant-settings";
+import { readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -68,23 +69,27 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
         {clients.map((client) => {
           const modules = readTenantDashboardModules(client.settings);
           const showProfiles = modules.databaseStats && client.selections.length > 0;
-          const profileTotal = client.selections.reduce((total, selection) => total + (selection.snapshots[0]?.profileCount ?? 0), 0);
-          const profileDelta = showProfiles ? dailyProfileDelta(client.selections) : null;
+          const widgetSettings = readSelectionWidgetSettings(client.settings);
+          const excludedFromTotal = new Set(widgetSettings.excludedFromTotal);
+          const primarySelection = client.selections.find((selection) => selection.id === widgetSettings.primaryTotalId);
+          const totalSelections = primarySelection ? [primarySelection] : client.selections.filter((selection) => !excludedFromTotal.has(selection.id));
+          const profileTotal = totalSelections.reduce((total, selection) => total + (selection.snapshots[0]?.profileCount ?? 0), 0);
+          const profileDelta = showProfiles ? dailyProfileDelta(totalSelections) : null;
+          const profileLabel = primarySelection ? `profielen in ${widgetSettings.labels[primarySelection.id] ?? primarySelection.name}` : "profielen in gevolgde selecties";
           const lastSync = client.copernica?.lastSyncedAt;
           return (
             <article key={client.id} className="panel client-card client-widget">
               <div className="client-widget-header">
                 <div className="client-logo">{client.logoDataUrl ? <Image src={client.logoDataUrl} alt={`${client.name} logo`} width={44} height={44} unoptimized /> : <span>{client.name.slice(0, 1).toUpperCase()}</span>}</div>
-                <p className="eyebrow">{client.status === "active" ? "Klant" : "Inactieve klant"}</p>
+                <h2 className="client-widget-name">{client.name}</h2>
                 <span className={`selection-widget-dot${client.status === "active" ? "" : " is-inactive"}`} aria-label={client.status === "active" ? "Actief" : "Inactief"} />
               </div>
-              <h2 className="client-widget-name">{client.name}</h2>
               <strong className="selection-widget-value">{(showProfiles ? profileTotal : client._count.campaigns).toLocaleString("nl-NL")}</strong>
-              <p className="client-widget-metric">{showProfiles ? "profielen in gevolgde selecties" : "campagnes gesynchroniseerd"}</p>
+              <p className="client-widget-metric">{showProfiles ? profileLabel : "campagnes gesynchroniseerd"}</p>
               {showProfiles ? profileDelta === null
                 ? <p className="selection-widget-delta selection-widget-delta-empty">Nog geen meting van gisteren</p>
                 : <p className={`selection-widget-delta ${profileDelta < 0 ? "trend-down" : profileDelta > 0 ? "trend-up" : "trend-flat"}`}>{profileDelta > 0 ? "+" : ""}{profileDelta.toLocaleString("nl-NL")} sinds gisteren</p> : null}
-              <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span></div>
+              <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span>{client.users[0] && client.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={client.id} /><button aria-label={`Inloggen als ${client.name}`} className="icon-button client-widget-login" title={`Inloggen als ${client.name}`} type="submit"><Eye size={16} /></button></form> : null}</div>
               <div className="client-widget-footer">
                 <small className="selection-widget-date">{client.copernica ? lastSync ? `Laatste sync ${lastSync.toLocaleDateString("nl-NL")}` : "Nog niet gesynchroniseerd" : "Geen Copernica-koppeling"}</small>
               <ClientEditDialog client={{

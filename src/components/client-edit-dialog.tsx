@@ -37,7 +37,7 @@ export function ClientEditDialog({ client }: { client: ClientEditDialogClient })
 
   return (
     <>
-      <button className="button button-secondary client-widget-edit" onClick={openDialog} type="button"><Pencil size={15} /> Aanpassen</button>
+      <button aria-label={`${client.name} aanpassen`} className="icon-button client-widget-edit" onClick={openDialog} title="Klant aanpassen" type="button"><Pencil size={16} /></button>
       <dialog aria-labelledby={titleId} className="customer-dialog client-dialog" onClose={() => setIsOpen(false)} ref={dialogRef}>
         <div className="customer-dialog-header">
           <div className="client-brand">
