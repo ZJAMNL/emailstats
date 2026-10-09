@@ -1,7 +1,10 @@
 import { loadEnvConfig } from "@next/env";
 import { defineConfig } from "prisma/config";
 
-loadEnvConfig(process.cwd());
+// Development mode: never load .env.production.local or .env.preview.local, so a local `prisma migrate`
+// cannot reach a hosted database by accident. Production migrates in the Vercel build, which sets the
+// variables itself; to target a hosted database on purpose, pass its URL explicitly.
+loadEnvConfig(process.cwd(), true);
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
