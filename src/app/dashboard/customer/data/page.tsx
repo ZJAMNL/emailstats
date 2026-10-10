@@ -1,4 +1,6 @@
-import { Database, RefreshCw, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Database, Mail, RefreshCw, ShieldCheck } from "lucide-react";
+import { CustomerDataTabs } from "@/components/customer-data-tabs";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { connectCopernicaAction, syncCopernicaNowAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
@@ -38,17 +40,23 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
   let enabledSelections: Awaited<ReturnType<typeof loadEnabledSelections>> = [];
   let databaseUnavailable = false;
   let databaseStatsEnabled = true;
+  let campaignStatsEnabled = false;
+  let campaignCounts = { total: 0, shown: 0 };
 
   if (process.env.DATABASE_URL) {
     try {
       let settings: unknown;
-      [connection, selections, enabledSelections, settings] = await Promise.all([
+      let byStatus: { included: boolean; _count: { _all: number } }[];
+      [connection, selections, enabledSelections, settings, byStatus] = await Promise.all([
         loadConnection(session.tenantId),
         loadSelections(session.tenantId),
         loadEnabledSelections(session.tenantId),
         getPrismaClient().tenant.findUnique({ where: { id: session.tenantId }, select: { settings: true } }).then((tenant) => tenant?.settings),
+        getPrismaClient().campaign.groupBy({ by: ["included"], where: { tenantId: session.tenantId }, _count: { _all: true } }),
       ]);
       databaseStatsEnabled = readTenantDashboardModules(settings).databaseStats;
+      campaignStatsEnabled = readTenantDashboardModules(settings).campaignStats;
+      campaignCounts = { total: byStatus.reduce((sum, row) => sum + row._count._all, 0), shown: byStatus.find((row) => row.included)?._count._all ?? 0 };
     } catch {
       databaseUnavailable = true;
     }
@@ -59,13 +67,15 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
   const enabledById = new Map(enabledSelections.map((selection) => [selection.id, selection]));
 
   return (
-    <DashboardShell role="customer" title="Copernica-data" subtitle="Koppel je database en kies welke selecties je wilt volgen.">
+    <DashboardShell role="customer" title="Beheer" subtitle="Koppel je database, kies welke selecties je volgt en welke e-mailcampagnes meetellen.">
+      <CustomerDataTabs current="copernica" showCampaigns={campaignStatsEnabled} />
       {params.notice && noticeText[params.notice] ? <p className="form-success" role="status">{noticeText[params.notice]}</p> : null}
       {params.error && errorText[params.error] ? <p className="form-error" role="alert">{errorText[params.error]}</p> : null}
       {databaseUnavailable ? <p className="form-error" role="status">De databron is nog niet geactiveerd. De beheerder moet eerst PostgreSQL configureren en migreren.</p> : null}
 
       <section className="data-overview">
         <article className="panel info-panel"><div className="icon-box"><Database size={20} /></div><div><p className="eyebrow">Copernica-status</p><h2>{connection ? "Verbonden" : "Niet gekoppeld"}</h2><p>{connection ? `Database ${connection.databaseId}${connection.lastSyncedAt ? ` · sync ${connection.lastSyncedAt.toLocaleString("nl-NL")}` : ""}` : "Je API-token wordt versleuteld opgeslagen en blijft op de server."}</p></div></article>
+        {campaignStatsEnabled ? <article className="panel info-panel"><div className="icon-box"><Mail size={20} /></div><div><p className="eyebrow">E-mailcampagnes</p><h2>{campaignCounts.shown.toLocaleString("nl-NL")} van {campaignCounts.total.toLocaleString("nl-NL")} getoond</h2><p>{campaignCounts.total > campaignCounts.shown ? "Verborgen campagnes tellen niet mee in je dashboard. " : ""}<Link href="/dashboard/customer/data/campagnes">Campagnes kiezen</Link></p></div></article> : null}
         <article className="panel info-panel"><div className="icon-box"><ShieldCheck size={20} /></div><div><p className="eyebrow">Toegang</p><h2>Alleen jouw tenant</h2><p>Je kunt uitsluitend je eigen Copernica-verbinding, selecties en meetreeksen bekijken.</p></div></article>
       </section>
 

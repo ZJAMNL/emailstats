@@ -95,7 +95,7 @@ async function loadData(tenantId: string, webshop: WebshopDefinition | null) {
     prisma.copernicaSelection.count({ where: { tenantId } }),
     prisma.copernicaSelection.count({ where: { tenantId, enabled: true } }),
     prisma.selectionSnapshot.findFirst({ where: { scope: "all", selection: { tenantId, enabled: true } }, orderBy: { measuredAt: "asc" }, select: { measuredAt: true } }),
-    prisma.campaign.findMany({ where: { tenantId }, select: { name: true, sentAt: true } }),
+    prisma.campaign.findMany({ where: { tenantId, included: true }, select: { name: true, sentAt: true } }),
   ]);
   const campaigns = filterCampaigns(campaignStats, webshop);
   const dates = campaigns.map((campaign) => campaign.sentAt?.getTime()).filter((time): time is number => time !== undefined).sort((left, right) => left - right);

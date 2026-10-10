@@ -79,9 +79,13 @@ model Campaign {
   updatedAt        DateTime  @updatedAt
   tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   copernicaId      String
+  /// Whether the customer shows and uses this campaign (Beheer → E-mailcampagnes). Hidden campaigns are kept.
+  included         Boolean   @default(true)
 
   @@unique([tenantId, copernicaId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, sentAt])
+  @@index([tenantId, included, sentAt])
 }
 
 model CopernicaConnection {

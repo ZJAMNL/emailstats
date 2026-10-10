@@ -133,3 +133,17 @@ function asRecord(value: unknown): Record<string, unknown> {
     ? value as Record<string, unknown>
     : {};
 }
+
+/** Whether campaigns that arrive with a sync are shown straight away (default) or wait until the customer picks them. */
+export function readCampaignAutoInclude(value: unknown) {
+  const autoInclude = asRecord(asRecord(value).campaignSelection).autoInclude;
+  return typeof autoInclude === "boolean" ? autoInclude : true;
+}
+
+export async function saveCampaignAutoInclude(tenantId: string, autoInclude: boolean) {
+  const prisma = getPrismaClient();
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+  if (!tenant) throw new Error("Tenant not found.");
+  const settings = asRecord(tenant.settings);
+  await prisma.tenant.update({ where: { id: tenantId }, data: { settings: { ...settings, campaignSelection: { ...asRecord(settings.campaignSelection), autoInclude } } } });
+}

@@ -29,10 +29,10 @@ export async function loadAlertContext(tenantId: string, now: Date): Promise<Ale
 
   const [campaigns, lastCampaign, rfmSnapshots] = await Promise.all([
     prisma.campaign.findMany({
-      where: { tenantId, sentAt: { gte: new Date(now.getTime() - 90 * dayMs), lte: now } },
+      where: { tenantId, included: true, sentAt: { gte: new Date(now.getTime() - 90 * dayMs), lte: now } },
       select: { id: true, name: true, sentAt: true, sentCount: true, openCount: true, clickCount: true, bounceCount: true, unsubscribeCount: true, complaintCount: true },
     }),
-    prisma.campaign.findFirst({ where: { tenantId, sentAt: { not: null, lte: now } }, orderBy: { sentAt: "desc" }, select: { sentAt: true } }),
+    prisma.campaign.findFirst({ where: { tenantId, included: true, sentAt: { not: null, lte: now } }, orderBy: { sentAt: "desc" }, select: { sentAt: true } }),
     tenant.rfmConfig?.enabled
       ? prisma.rfmSegmentSnapshot.findMany({ where: { tenantId, measuredAt: { gte: new Date(now.getTime() - 35 * dayMs) } }, select: { measuredAt: true, segment: true, customers: true } })
       : Promise.resolve([]),

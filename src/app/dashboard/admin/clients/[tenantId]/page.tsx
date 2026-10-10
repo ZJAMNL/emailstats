@@ -58,11 +58,13 @@ export default async function AdminClientDetail({ params, searchParams }: Client
         include: { snapshots: { where: { scope: scope.id }, orderBy: { measuredAt: "desc" }, take: 90 } },
         orderBy: { name: "asc" },
       },
+      // Same campaigns as the customer sees; hidden ones are counted separately.
       campaigns: {
+        where: { included: true },
         orderBy: [{ sentAt: "desc" }, { name: "asc" }],
         take: 1000,
       },
-      _count: { select: { campaigns: true } },
+      _count: { select: { campaigns: { where: { included: true } } } },
       owner: { select: { email: true } },
       alertSettings: { select: { enabled: true, recipients: true, rules: true, lastDigestAt: true } },
       alertEvents: { orderBy: { triggeredAt: "desc" }, take: 20, select: { id: true, ruleKey: true, severity: true, title: true, triggeredAt: true, sentAt: true } },
@@ -71,7 +73,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
 
   if (!tenant) notFound();
 
-  const dashboardModules = await getTenantDashboardModules(tenant.id);
+  const [dashboardModules, hiddenCampaigns] = await Promise.all([getTenantDashboardModules(tenant.id), getPrismaClient().campaign.count({ where: { tenantId: tenant.id, included: false } })]);
   const campaigns = filterCampaigns(tenant.campaigns, scope.webshop);
   const enabledSelections = tenant.selections.filter((selection) => selection.enabled);
   const totalSent = campaigns.reduce((total, campaign) => total + campaign.sentCount, 0);
@@ -185,7 +187,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       </section>
 
       <section className="panel table-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Gesynchroniseerde mailings</h2></div><span className="tab">{integerFormat.format(tenant._count.campaigns)} totaal</span></div>
+        <div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Gesynchroniseerde mailings</h2></div><span className="tab">{integerFormat.format(tenant._count.campaigns)} getoond{hiddenCampaigns ? ` · ${integerFormat.format(hiddenCampaigns)} verborgen door de klant` : ""}</span></div>
         {campaigns.length ? <><div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Openingen</th><th>Klikken</th><th>CTR</th></tr></thead><tbody>{campaigns.map((campaign) => <tr key={campaign.id}><td><span className="campaign-detail-name"><Mail size={15} />{campaign.name}</span></td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "—"}</td><td>{integerFormat.format(campaign.sentCount)}</td><td>{integerFormat.format(campaign.openCount)}</td><td>{integerFormat.format(campaign.clickCount)}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "—"}</td></tr>)}</tbody></table></div>{!scope.webshop && tenant._count.campaigns > campaigns.length ? <p className="tenant-boundary">Toont de {integerFormat.format(campaigns.length)} recentste campagnes van {integerFormat.format(tenant._count.campaigns)}.</p> : null}</> : <p className="empty-state">Nog geen campagnes gesynchroniseerd.</p>}
       </section>
     </DashboardShell>

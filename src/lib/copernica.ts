@@ -1,6 +1,6 @@
 import { getPrismaClient } from "./prisma";
 import { decryptCopernicaToken } from "./copernica-crypto";
-import { getTenantDashboardModules } from "./tenant-settings";
+import { getTenantDashboardModules, readCampaignAutoInclude } from "./tenant-settings";
 import { loadWebshops, type WebshopDefinition } from "./webshops";
 
 export { decryptCopernicaToken, encryptCopernicaToken } from "./copernica-crypto";
@@ -259,6 +259,9 @@ export async function syncTenantCopernicaData(
       ...(dragMailings.data ?? []).map((mailing) => ({ mailing, channel: "draganddrop" })),
     ].filter(({ mailing }) => mailing.target?.sources?.some((source) => String(source.id) === connection.databaseId));
     campaignCount = scopedMailings.length;
+    // New campaigns follow the customer's choice; existing ones keep whatever the customer set.
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+    const included = readCampaignAutoInclude(tenant?.settings);
 
     await mapInBatches(scopedMailings, 8, async ({ mailing, channel }) => {
       const copernicaId = `${channel}:${mailing.id}`;
@@ -288,6 +291,7 @@ export async function syncTenantCopernicaData(
           bounceCount,
           unsubscribeCount,
           complaintCount,
+          included,
           revenue: 0,
           sentAt,
         },

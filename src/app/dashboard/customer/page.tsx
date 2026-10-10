@@ -186,6 +186,7 @@ function loadTenant(tenantId: string, scope: string) {
     include: {
       copernica: true,
       campaigns: {
+        where: { included: true },
         orderBy: { sentAt: "desc" },
         take: 1000,
       },

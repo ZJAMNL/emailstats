@@ -61,7 +61,7 @@ function loadCampaigns(tenantId: string, from: string, to: string) {
   } : undefined;
 
   return getPrismaClient().campaign.findMany({
-    where: { tenantId, ...(sentAt ? { sentAt } : {}) },
+    where: { tenantId, included: true, ...(sentAt ? { sentAt } : {}) },
     orderBy: [{ sentAt: "desc" }, { name: "asc" }],
     take: 500,
   });
