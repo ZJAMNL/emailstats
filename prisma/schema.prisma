@@ -32,18 +32,18 @@ model User {
 }
 
 model Tenant {
-  id               String                @id @default(cuid())
+  id               String               @id @default(cuid())
   name             String
-  slug             String                @unique
-  logoDataUrl      String?               @db.Text
-  status           String                @default("active")
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-  settings         Json                  @default("{}")
+  slug             String               @unique
+  logoDataUrl      String?              @db.Text
+  status           String               @default("active")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  settings         Json                 @default("{}")
   /// The beheerder responsible for this customer. Without one, only superbeheerders see it.
   ownerId          String?
-  owner            User?                 @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  users            User[]                @relation("TenantUsers")
+  owner            User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  users            User[]               @relation("TenantUsers")
   campaigns        Campaign[]
   copernica        CopernicaConnection?
   selections       CopernicaSelection[]
@@ -56,7 +56,7 @@ model Tenant {
   alertEvents      AlertEvent[]
   predictionConfig PredictionConfig?
   predictions      ProfilePrediction[]
-  predictionWrites PredictionWriteBack[]
+  insightWrites    InsightWriteBack[]
 
   @@index([ownerId])
 }
@@ -123,28 +123,33 @@ model SelectionSnapshot {
 }
 
 model RfmConfig {
-  id                  String    @id @default(cuid())
-  tenantId            String    @unique
-  collectionId        String
-  collectionName      String
-  dateField           String
-  amountField         String
-  statusField         String?
-  excludedStatuses    String[]  @default([])
-  windowMonths        Int       @default(24)
-  frequencyThresholds Int[]     @default([1, 2, 3, 4, 5])
-  marginPercent       Int       @default(100)
-  enabled             Boolean   @default(false)
-  customerVisible     Boolean   @default(false)
-  writeBackEnabled    Boolean   @default(false)
-  lastRunAt           DateTime?
-  lastRunStatus       String?
-  lastRunSummary      Json?
-  lastWriteAt         DateTime?
-  lastWriteSummary    Json?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(cuid())
+  tenantId             String    @unique
+  collectionId         String
+  collectionName       String
+  dateField            String
+  amountField          String
+  statusField          String?
+  excludedStatuses     String[]  @default([])
+  windowMonths         Int       @default(24)
+  frequencyThresholds  Int[]     @default([1, 2, 3, 4, 5])
+  marginPercent        Int       @default(100)
+  enabled              Boolean   @default(false)
+  customerVisible      Boolean   @default(false)
+  writeBackEnabled     Boolean   @default(false)
+  /// Transition: also write the old RFM_ profile fields. When switched off they are cleared in batches.
+  profileFieldsEnabled Boolean   @default(true)
+  /// Last write to the Copernica collection Klantinzichten (RFM and predictions together).
+  insightsWriteAt      DateTime?
+  insightsWriteSummary Json?
+  lastRunAt            DateTime?
+  lastRunStatus        String?
+  lastRunSummary       Json?
+  lastWriteAt          DateTime?
+  lastWriteSummary     Json?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model RfmProfileScore {
@@ -276,8 +281,6 @@ model PredictionConfig {
   lastRunStatus      String?
   /// The backtest report (src/lib/predict/model.ts PredictionReport).
   lastRunSummary     Json?
-  lastWriteAt        DateTime?
-  lastWriteSummary   Json?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -292,18 +295,21 @@ model ProfilePrediction {
   intentBand          String?
   favoriteCategory    String?
   nextCategory        String?
-  recommendations     String[] @default([])
-  updatedAt           DateTime @updatedAt
-  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recommendations     String[]  @default([])
+  recommendationNames String[]  @default([])
+  lastVisitAt         DateTime?
+  updatedAt           DateTime  @updatedAt
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([tenantId, copernicaProfileId])
   @@index([tenantId, intentBand])
 }
 
-/// What was last written to each Copernica profile for the AI_ fields (RfmWriteBack does the same for RFM_).
-model PredictionWriteBack {
+/// One row per profile in the Copernica collection "Klantinzichten": which subprofile holds it and what was written.
+model InsightWriteBack {
   tenantId           String
   copernicaProfileId String
+  subprofileId       String
   hash               String
   writtenAt          DateTime
   tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)

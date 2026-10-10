@@ -13,6 +13,10 @@
       "schedule": "30 5 * * *"
     },
     {
+      "path": "/api/cron/insights",
+      "schedule": "45 5 * * *"
+    },
+    {
       "path": "/api/cron/alerts",
       "schedule": "0 6 * * *"
     }

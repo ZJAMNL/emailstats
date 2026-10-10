@@ -69,6 +69,8 @@ export async function runPredictions(tenantId: string) {
       favoriteCategory: prediction.favoriteCategory,
       nextCategory: prediction.nextCategory,
       recommendations: prediction.recommendations,
+      recommendationNames: prediction.recommendationNames,
+      lastVisitAt: prediction.lastVisitAt,
     }));
     await prisma.$transaction(async (transaction) => {
       await transaction.profilePrediction.deleteMany({ where: { tenantId } });

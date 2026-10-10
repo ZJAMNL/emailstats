@@ -333,6 +333,8 @@ td { color: #dfe9f5; }
 .predict-step select { min-height: 40px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-strong); color: var(--text); font: inherit; }
 .predict-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .8rem; }
 .predict-consent { align-items: flex-start; line-height: 1.45; }
+.insights-legacy { display: grid; gap: .5rem; margin-top: 1.25rem; padding: .9rem 1rem; border: 1px dashed var(--border); border-radius: 12px; }
+.insights-legacy .eyebrow, .insights-legacy .rfm-hint { margin: 0; }
 :root[data-theme="light"] .predict-verdict.is-matig { color: #8a6418; }
 :root[data-theme="light"] .predict-verdict.is-onvoldoende { color: #b03a43; }
 .admin-table td { vertical-align: middle; }

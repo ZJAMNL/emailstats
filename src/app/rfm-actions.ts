@@ -6,8 +6,6 @@ import { getPrismaClient } from "@/lib/prisma";
 import { listCollectionFields, listCollections, sampleOrders } from "@/lib/rfm/copernica-orders";
 import { calculateRfm, runRfm, type RfmModelSettings, type RfmRunSummary } from "@/lib/rfm/run";
 import { adminForTenant } from "@/lib/admin-access";
-import { CopernicaError } from "@/lib/copernica";
-import { ensureRfmFields, writeRfmToCopernica, type WriteBackSummary } from "@/lib/rfm/writeback";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -118,33 +116,10 @@ function validateSettings(input: RfmModelSettings): RfmModelSettings | null {
 
 // ---------------------------------------------------------------- write-back to Copernica
 
-export async function rfmEnsureFieldsAction(tenantId: string): Promise<Result<{ created: string[]; existing: string[] }>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  try {
-    const result = await ensureRfmFields(tenantId);
-    refresh();
-    return { ok: true, data: result };
-  } catch (error) {
-    if (error instanceof CopernicaError && (error.status === 401 || error.status === 403)) return { ok: false, error: "Copernica weigert het aanmaken: het API-token van deze klant heeft geen schrijfrechten." };
-    return { ok: false, error: "De velden konden niet worden aangemaakt. Controleer de Copernica-koppeling." };
-  }
-}
 
 export async function rfmWriteBackSettingAction(tenantId: string, enabled: boolean): Promise<Result<null>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
   await getPrismaClient().rfmConfig.update({ where: { tenantId }, data: { writeBackEnabled: enabled === true } });
   refresh();
   return { ok: true, data: null };
-}
-
-export async function rfmWriteBackNowAction(tenantId: string): Promise<Result<WriteBackSummary>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  try {
-    // Leave headroom under the page's 300-second limit; the rest follows on the next run.
-    const summary = await writeRfmToCopernica(tenantId, Date.now() + 240_000);
-    refresh();
-    return summary.error ? { ok: false, error: summary.error } : { ok: true, data: summary };
-  } catch {
-    return { ok: false, error: "Terugschrijven is mislukt. Controleer de Copernica-koppeling." };
-  }
 }

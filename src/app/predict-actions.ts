@@ -2,12 +2,8 @@
 
 import { refresh } from "next/cache";
 import { adminForTenant } from "@/lib/admin-access";
-import { CopernicaError } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
-import { isWriteBackAllowed } from "@/lib/predict/model";
-import { runPredictions, type PredictionRunSummary } from "@/lib/predict/run";
-import { ensurePredictionFields, writePredictionsToCopernica } from "@/lib/predict/writeback";
-import type { WriteBackSummary } from "@/lib/rfm/writeback";
+import { runPredictions } from "@/lib/predict/run";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -90,34 +86,10 @@ export async function disablePredictionsAction(tenantId: string): Promise<Result
   return { ok: true, data: null };
 }
 
-export async function ensurePredictionFieldsAction(tenantId: string): Promise<Result<{ created: string[] }>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  try {
-    const result = await ensurePredictionFields(tenantId);
-    refresh();
-    return { ok: true, data: result };
-  } catch (error) {
-    if (error instanceof CopernicaError && (error.status === 401 || error.status === 403)) return { ok: false, error: "Copernica weigert het aanmaken: het API-token van deze klant heeft geen schrijfrechten." };
-    return { ok: false, error: "De velden konden niet worden aangemaakt. Controleer de Copernica-koppeling." };
-  }
-}
 
 export async function predictionWriteBackSettingAction(tenantId: string, enabled: boolean): Promise<Result<null>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
   await getPrismaClient().predictionConfig.update({ where: { tenantId }, data: { writeBackEnabled: enabled === true } });
   refresh();
   return { ok: true, data: null };
-}
-
-export async function writePredictionsNowAction(tenantId: string): Promise<Result<WriteBackSummary>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  const config = await getPrismaClient().predictionConfig.findUnique({ where: { tenantId }, select: { lastRunSummary: true } });
-  if (!config?.lastRunSummary || !isWriteBackAllowed(config.lastRunSummary as unknown as PredictionRunSummary)) return { ok: false, error: "Geen enkel model haalde de backtest; er wordt niets teruggeschreven." };
-  try {
-    const summary = await writePredictionsToCopernica(tenantId, Date.now() + 240_000);
-    refresh();
-    return summary.error ? { ok: false, error: summary.error } : { ok: true, data: summary };
-  } catch {
-    return { ok: false, error: "Terugschrijven is mislukt. Controleer de Copernica-koppeling." };
-  }
 }

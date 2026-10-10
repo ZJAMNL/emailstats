@@ -5,8 +5,9 @@ import { loadWebshops, type WebshopDefinition } from "./webshops";
 
 export { decryptCopernicaToken, encryptCopernicaToken } from "./copernica-crypto";
 
-const COPERNICA_AUTH_URL = "https://authenticate.copernica.com";
-const COPERNICA_API_URL = "https://api.copernica.com/v4";
+// COPERNICA_TEST_API_URL points both at a local stand-in for end-to-end tests; it is never set in a real environment.
+const COPERNICA_AUTH_URL = process.env.COPERNICA_TEST_API_URL ? `${process.env.COPERNICA_TEST_API_URL}/authenticate` : "https://authenticate.copernica.com";
+const COPERNICA_API_URL = process.env.COPERNICA_TEST_API_URL ?? "https://api.copernica.com/v4";
 const REQUEST_TIMEOUT_MS = 12_000;
 
 export type CopernicaList<T> = {
@@ -95,8 +96,8 @@ export class CopernicaError extends Error {
   }
 }
 
-/** POST or PUT a JSON body. Copernica answers writes with 201/204 and often no body. */
-export async function copernicaSend(jwt: string, method: "POST" | "PUT", path: string, body: Record<string, unknown>) {
+/** POST, PUT or DELETE with a JSON body. Copernica answers writes with 201/204 and often no body. */
+export async function copernicaSend(jwt: string, method: "POST" | "PUT" | "DELETE", path: string, body: Record<string, unknown>) {
   const response = await fetch(`${COPERNICA_API_URL}/${path.replace(/^\//, "")}`, {
     method,
     headers: { Authorization: `Bearer ${jwt}`, Accept: "application/json", "Content-Type": "application/json" },
@@ -106,6 +107,12 @@ export async function copernicaSend(jwt: string, method: "POST" | "PUT", path: s
   });
   if (!response.ok) throw new CopernicaError(response.status);
   return response.headers.get("X-Created") ?? response.headers.get("Location");
+}
+
+/** The id of a created object: X-Created holds it directly, Location ends with it. */
+export function createdId(header: string | null) {
+  const match = header ? /(\d+)\/?$/.exec(header.trim()) : null;
+  return match ? match[1] : null;
 }
 
 export async function listCopernicaViews(apiToken: string, databaseId: string) {

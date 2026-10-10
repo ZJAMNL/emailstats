@@ -46,6 +46,9 @@ export type ProfilePredictionResult = {
   favoriteCategory: string | null;
   nextCategory: string | null;
   recommendations: string[];
+  /** Product names of the recommendations, in the same order (the id when no name is known). */
+  recommendationNames: string[];
+  lastVisitAt: Date | null;
 };
 
 export function verdictFor(aucValue: number, lift: number): Verdict {
@@ -126,6 +129,8 @@ export function buildPredictions(data: PredictData, now: Date): { report: Predic
   const recommender = buildRecommender(data.lines, now);
   const { owned, viewed } = profileHistory(data.lines, data.events, now);
   const favorites = favoriteCategories(data.lines, now);
+  const lastVisit = new Map<string, number>();
+  for (const event of data.events) if (event.date.getTime() <= now.getTime()) lastVisit.set(event.profileId, Math.max(lastVisit.get(event.profileId) ?? 0, event.date.getTime()));
 
   const predictions = [
     ...buyerRows.map((row) => ({ row, isBuyer: true, group: buyerScores })),
@@ -141,6 +146,8 @@ export function buildPredictions(data: PredictData, now: Date): { report: Predic
       favoriteCategory: favorites.get(row.profileId) ?? null,
       nextCategory: recommendationUsable ? recommendedCategories(recommender, products)[0] ?? null : null,
       recommendations: products,
+      recommendationNames: products.map((product) => recommender.name.get(product) ?? product),
+      lastVisitAt: lastVisit.has(row.profileId) ? new Date(lastVisit.get(row.profileId)!) : null,
     };
   });
 

@@ -1,39 +1,17 @@
-import { CopernicaError, copernicaSend, getTenantCopernica, listDatabaseFields, mapInBatches } from "../copernica";
+import { CopernicaError, copernicaSend, getTenantCopernica, mapInBatches } from "../copernica";
 import { getPrismaClient } from "../prisma";
-import { clearedHash, clearedProfileFields, desiredProfileFields, planWriteBack, rfmCopernicaFields } from "./writeback-plan";
+import { clearedHash, clearedProfileFields, desiredProfileFields, planWriteBack } from "./writeback-plan";
 
 export { noRecentPurchaseLabel, rfmCopernicaFields } from "./writeback-plan";
 
 export type WriteBackSummary = { at: string; updated: number; cleared: number; failed: number; remaining: number; error?: string };
 
-export async function ensureRfmFields(tenantId: string) {
-  const connected = await getTenantCopernica(tenantId);
-  if (!connected) throw new Error("Deze klant heeft nog geen Copernica-koppeling.");
-  const existing = new Set((await listDatabaseFields(connected.jwt, connected.connection.databaseId)).map((field) => field.name.toLowerCase()));
-  const created: string[] = [];
-  for (const field of rfmCopernicaFields) {
-    if (existing.has(field.name.toLowerCase())) continue;
-    await copernicaSend(connected.jwt, "POST", `database/${encodeURIComponent(connected.connection.databaseId)}/fields`, {
-      name: field.name,
-      type: field.type,
-      description: field.description,
-      ...("length" in field ? { length: field.length } : {}),
-      index: field.index,
-      displayed: field.name === "RFM_Segment",
-    });
-    created.push(field.name);
-  }
-  return { created, existing: rfmCopernicaFields.map((field) => field.name).filter((name) => existing.has(name.toLowerCase())) };
-}
 
-export async function listMissingRfmFields(tenantId: string) {
-  const connected = await getTenantCopernica(tenantId);
-  if (!connected) return null;
-  const existing = new Set((await listDatabaseFields(connected.jwt, connected.connection.databaseId)).map((field) => field.name.toLowerCase()));
-  return rfmCopernicaFields.map((field) => field.name).filter((name) => !existing.has(name.toLowerCase()));
-}
 
-/** Writes changed RFM values to Copernica until the deadline; the next run continues where this one stopped. */
+/**
+ * Transition only: keeps the old RFM_ profile fields up to date until the customer switches them off.
+ * New values go to the collection Klantinzichten (src/lib/insights/writer.ts).
+ */
 export async function writeRfmToCopernica(tenantId: string, deadline: number): Promise<WriteBackSummary> {
   const prisma = getPrismaClient();
   const connected = await getTenantCopernica(tenantId);

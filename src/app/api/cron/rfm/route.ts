@@ -7,7 +7,7 @@ import { writeRfmToCopernica } from "@/lib/rfm/writeback";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-/** Nightly: recalculate every enabled RFM model and write changes back to Copernica where that is switched on. */
+/** Nightly: recalculate every enabled RFM model and, during the transition, update the old RFM_ profile fields. */
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
 
   const deadline = Date.now() + 270_000;
-  const configs = await getPrismaClient().rfmConfig.findMany({ where: { enabled: true }, select: { tenantId: true, writeBackEnabled: true }, orderBy: { lastRunAt: "asc" } });
+  const configs = await getPrismaClient().rfmConfig.findMany({ where: { enabled: true }, select: { tenantId: true, writeBackEnabled: true, profileFieldsEnabled: true }, orderBy: { lastRunAt: "asc" } });
   const results: { tenantId: string; calculated: boolean; written?: number; remaining?: number }[] = [];
 
   for (const config of configs) {
@@ -25,7 +25,8 @@ export async function GET(request: NextRequest) {
     try {
       await runRfm(config.tenantId);
       result.calculated = true;
-      if (config.writeBackEnabled) {
+      // The collection Klantinzichten is written by /api/cron/insights; this keeps the old RFM_ profile fields during the transition.
+      if (config.writeBackEnabled && config.profileFieldsEnabled) {
         const summary = await writeRfmToCopernica(config.tenantId, deadline);
         result.written = summary.updated + summary.cleared;
         result.remaining = summary.remaining;

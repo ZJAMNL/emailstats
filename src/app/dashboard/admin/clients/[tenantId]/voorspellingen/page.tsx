@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PredictReport } from "@/components/predict-report";
-import { PredictRunControls, PredictWriteBack } from "@/components/predict-controls";
+import { InsightsWriteBack } from "@/components/insights-writeback";
+import { PredictRunControls } from "@/components/predict-controls";
 import { PredictSetup } from "@/components/predict-setup";
 import { requireTenantAdmin } from "@/lib/admin-access";
 import { isWriteBackAllowed } from "@/lib/predict/model";
 import type { PredictionRunSummary } from "@/lib/predict/run";
-import { listMissingPredictionFields } from "@/lib/predict/writeback";
+import { insightsStatus, type InsightWriteSummary } from "@/lib/insights/writer";
 import { getPrismaClient } from "@/lib/prisma";
-import type { WriteBackSummary } from "@/lib/rfm/writeback";
 
 export const dynamic = "force-dynamic";
 // Calculations fetch every order line and web event from Copernica and can take a while.
@@ -23,13 +23,13 @@ export default async function AdminClientPredictions({ params }: { params: Promi
 
   const tenant = await getPrismaClient().tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, name: true, copernica: { select: { databaseId: true } }, rfmConfig: { select: { collectionId: true, collectionName: true } }, predictionConfig: true },
+    select: { id: true, name: true, copernica: { select: { databaseId: true } }, rfmConfig: { select: { collectionId: true, collectionName: true, insightsWriteSummary: true } }, predictionConfig: true },
   });
   if (!tenant) notFound();
 
   const config = tenant.predictionConfig;
   const summary = config?.enabled && config.lastRunSummary ? config.lastRunSummary as unknown as PredictionRunSummary : null;
-  const missingFields = summary ? await listMissingPredictionFields(tenantId).catch(() => null) : null;
+  const collectionStatus = summary ? await insightsStatus(tenantId).catch(() => null) : null;
   const back = <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}`}><ArrowLeft size={16} /> Terug naar {tenant.name}</Link>;
   const initial = config ? {
     lineCollectionId: config.lineCollectionId, lineCollectionName: config.lineCollectionName, lineOrderField: config.lineOrderField, orderKeyField: config.orderKeyField,
@@ -51,7 +51,7 @@ export default async function AdminClientPredictions({ params }: { params: Promi
       {summary ? <>
         <p className="rfm-meta">Laatst berekend op {new Date(summary.ranAt).toLocaleString("nl-NL")} · orderregels uit {config?.lineCollectionName}{config?.webCollectionName ? ` · webtracking uit ${config.webCollectionName}` : " · zonder webtracking"}</p>
         <PredictReport summary={summary} />
-        <section className="panel table-panel" id="copernica"><div className="panel-heading"><div><p className="eyebrow">Copernica</p><h2>Terugschrijven als kenmerk</h2></div></div><PredictWriteBack allowed={isWriteBackAllowed(summary)} enabled={config!.writeBackEnabled} lastWrite={config!.lastWriteSummary as unknown as WriteBackSummary | null} missingFields={missingFields} tenantId={tenant.id} /></section>
+        <section className="panel table-panel" id="copernica"><div className="panel-heading"><div><p className="eyebrow">Copernica</p><h2>Terugschrijven naar Klantinzichten</h2></div></div><InsightsWriteBack allowed={isWriteBackAllowed(summary)} enabled={config!.writeBackEnabled} lastWrite={tenant.rfmConfig?.insightsWriteSummary as unknown as InsightWriteSummary | null} part="ai" status={collectionStatus} tenantId={tenant.id} /></section>
       </> : null}
 
       {setup ? <section className="panel table-panel">

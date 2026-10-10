@@ -1,3 +1,8 @@
+-- AlterTable
+ALTER TABLE "RfmConfig" ADD COLUMN     "insightsWriteAt" TIMESTAMP(3),
+ADD COLUMN     "insightsWriteSummary" JSONB,
+ADD COLUMN     "profileFieldsEnabled" BOOLEAN NOT NULL DEFAULT true;
+
 -- CreateTable
 CREATE TABLE "PredictionConfig" (
     "tenantId" TEXT NOT NULL,
@@ -19,8 +24,6 @@ CREATE TABLE "PredictionConfig" (
     "lastRunAt" TIMESTAMP(3),
     "lastRunStatus" TEXT,
     "lastRunSummary" JSONB,
-    "lastWriteAt" TIMESTAMP(3),
-    "lastWriteSummary" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -37,19 +40,22 @@ CREATE TABLE "ProfilePrediction" (
     "favoriteCategory" TEXT,
     "nextCategory" TEXT,
     "recommendations" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "recommendationNames" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "lastVisitAt" TIMESTAMP(3),
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "ProfilePrediction_pkey" PRIMARY KEY ("tenantId","copernicaProfileId")
 );
 
 -- CreateTable
-CREATE TABLE "PredictionWriteBack" (
+CREATE TABLE "InsightWriteBack" (
     "tenantId" TEXT NOT NULL,
     "copernicaProfileId" TEXT NOT NULL,
+    "subprofileId" TEXT NOT NULL,
     "hash" TEXT NOT NULL,
     "writtenAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "PredictionWriteBack_pkey" PRIMARY KEY ("tenantId","copernicaProfileId")
+    CONSTRAINT "InsightWriteBack_pkey" PRIMARY KEY ("tenantId","copernicaProfileId")
 );
 
 -- CreateIndex
@@ -62,5 +68,5 @@ ALTER TABLE "PredictionConfig" ADD CONSTRAINT "PredictionConfig_tenantId_fkey" F
 ALTER TABLE "ProfilePrediction" ADD CONSTRAINT "ProfilePrediction_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PredictionWriteBack" ADD CONSTRAINT "PredictionWriteBack_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "InsightWriteBack" ADD CONSTRAINT "InsightWriteBack_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
