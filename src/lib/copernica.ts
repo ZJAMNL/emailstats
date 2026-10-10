@@ -39,8 +39,8 @@ type CopernicaCount = { total?: number | string; unique?: number | string };
 type CopernicaMailingStats = {
   destinations?: number | string;
   deliveries?: { total?: number | string };
-  impressions?: { total?: number | string };
-  clicks?: { total?: number | string };
+  impressions?: CopernicaCount;
+  clicks?: CopernicaCount;
   /** Bounces. */
   errors?: CopernicaCount;
   unsubscribes?: CopernicaCount;
@@ -271,8 +271,9 @@ export async function syncTenantCopernicaData(
         `${channel}/emailing/${encodeURIComponent(String(mailing.id))}/statistics`,
       );
       const sentCount = countValue(stats.deliveries?.total ?? stats.destinations ?? mailing.destinations);
-      const openCount = countValue(stats.impressions?.total ?? mailing.impressions);
-      const clickCount = countValue(stats.clicks?.total ?? mailing.clicks);
+      // Unique openers and clickers: totals count repeat opens, which pushes the open rate past 100%.
+      const openCount = countValue(stats.impressions?.unique ?? stats.impressions?.total ?? mailing.impressions);
+      const clickCount = countValue(stats.clicks?.unique ?? stats.clicks?.total ?? mailing.clicks);
       // Recipients rather than events, so rates stay comparable to the number sent.
       const bounceCount = countValue(stats.errors?.unique ?? stats.errors?.total);
       const unsubscribeCount = countValue(stats.unsubscribes?.unique ?? stats.unsubscribes?.total);

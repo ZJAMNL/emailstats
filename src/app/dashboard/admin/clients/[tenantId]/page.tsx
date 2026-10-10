@@ -59,10 +59,11 @@ export default async function AdminClientDetail({ params, searchParams }: Client
         orderBy: { name: "asc" },
       },
       // Same campaigns as the customer sees; hidden ones are counted separately.
+      // All of them for the totals (only the columns in use); the table shows the latest 1,000.
       campaigns: {
         where: { included: true },
         orderBy: [{ sentAt: "desc" }, { name: "asc" }],
-        take: 1000,
+        select: { id: true, name: true, sentAt: true, sentCount: true, openCount: true, clickCount: true },
       },
       _count: { select: { campaigns: { where: { included: true } } } },
       owner: { select: { email: true } },
@@ -188,7 +189,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
 
       <section className="panel table-panel">
         <div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Gesynchroniseerde mailings</h2></div><span className="tab">{integerFormat.format(tenant._count.campaigns)} getoond{hiddenCampaigns ? ` · ${integerFormat.format(hiddenCampaigns)} verborgen door de klant` : ""}</span></div>
-        {campaigns.length ? <><div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Openingen</th><th>Klikken</th><th>CTR</th></tr></thead><tbody>{campaigns.map((campaign) => <tr key={campaign.id}><td><span className="campaign-detail-name"><Mail size={15} />{campaign.name}</span></td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "—"}</td><td>{integerFormat.format(campaign.sentCount)}</td><td>{integerFormat.format(campaign.openCount)}</td><td>{integerFormat.format(campaign.clickCount)}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "—"}</td></tr>)}</tbody></table></div>{!scope.webshop && tenant._count.campaigns > campaigns.length ? <p className="tenant-boundary">Toont de {integerFormat.format(campaigns.length)} recentste campagnes van {integerFormat.format(tenant._count.campaigns)}.</p> : null}</> : <p className="empty-state">Nog geen campagnes gesynchroniseerd.</p>}
+        {campaigns.length ? <><div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Openingen</th><th>Klikken</th><th>CTR</th></tr></thead><tbody>{campaigns.slice(0, 1000).map((campaign) => <tr key={campaign.id}><td><span className="campaign-detail-name"><Mail size={15} />{campaign.name}</span></td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "—"}</td><td>{integerFormat.format(campaign.sentCount)}</td><td>{integerFormat.format(campaign.openCount)}</td><td>{integerFormat.format(campaign.clickCount)}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "—"}</td></tr>)}</tbody></table></div>{campaigns.length > 1000 ? <p className="tenant-boundary">Toont de 1.000 recentste campagnes van {integerFormat.format(campaigns.length)}; de cijfers hierboven tellen ze allemaal mee.</p> : null}</> : <p className="empty-state">Nog geen campagnes gesynchroniseerd.</p>}
       </section>
     </DashboardShell>
   );

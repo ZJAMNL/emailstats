@@ -185,10 +185,11 @@ function loadTenant(tenantId: string, scope: string) {
     where: { id: tenantId },
     include: {
       copernica: true,
+      // Every shown campaign, not the latest 1,000: the totals must cover them all. Only the columns in use.
       campaigns: {
         where: { included: true },
         orderBy: { sentAt: "desc" },
-        take: 1000,
+        select: { id: true, name: true, sentAt: true, sentCount: true, openCount: true, clickCount: true },
       },
       selections: {
         where: { enabled: true },
