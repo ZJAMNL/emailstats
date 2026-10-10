@@ -404,6 +404,49 @@ td { color: #dfe9f5; }
 .admin-create-hint { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .8rem; }
 .admin-create-form .button { justify-self: start; }
 @media (max-width: 760px) { .admin-create-form { grid-template-columns: 1fr; } }
+/* Edit customer dialog: fixed header and footer, numbered sections in between. */
+.customer-dialog.client-edit { display: none; width: min(640px, calc(100vw - 32px)); max-height: min(860px, calc(100dvh - 32px)); padding: 0; }
+.customer-dialog.client-edit[open] { display: flex; flex-direction: column; }
+.client-edit-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1.15rem 1.35rem; border-bottom: 1px solid var(--border); background: var(--panel-strong); }
+.client-edit-header h2 { margin: 0; font-size: 1.2rem; }
+.client-edit-facts { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; margin: .3rem 0 0; color: var(--muted); font-size: .78rem; line-height: 1.4; overflow-wrap: anywhere; }
+.client-edit-status { padding: .1rem .5rem; border-radius: 999px; background: rgba(76,201,167,.12); color: var(--accent); font-size: .7rem; font-weight: 800; }
+.client-edit-status.is-inactive { background: rgba(127,127,127,.15); color: var(--muted); }
+.client-edit-quick { display: flex; flex-wrap: wrap; gap: .5rem; padding: 1rem 1.35rem 0; }
+.client-edit-quick .button { min-height: 36px; padding: .35rem .8rem; font-size: .82rem; }
+.client-edit-form { display: grid; gap: 0; padding: 0 1.35rem; }
+.client-edit-section { display: grid; gap: .75rem; padding: 1.25rem 0; border-bottom: 1px solid var(--border); }
+.client-edit-section h3 { display: flex; align-items: center; gap: .55rem; margin: 0; font-size: .95rem; }
+.client-edit-section h3 span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(76,201,167,.14); color: var(--accent); font-size: .72rem; font-weight: 800; }
+.client-edit-intro, .client-edit-note { margin: -.35rem 0 0; color: var(--muted); font-size: .8rem; }
+.client-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: .9rem; }
+.client-edit label { display: grid; gap: .4rem; color: var(--text); font-size: .82rem; font-weight: 700; }
+.client-edit input[type="text"], .client-edit input:not([type]), .client-edit input[type="email"], .client-edit select { width: 100%; min-width: 0; min-height: 42px; padding: 0 .75rem; border: 1px solid var(--border); border-radius: 9px; outline: none; background: rgba(255,255,255,.03); color: var(--text); font: inherit; font-weight: 400; }
+.client-edit select { background: var(--panel-strong); }
+.client-edit input:focus, .client-edit select:focus { border-color: rgba(76,201,167,.72); box-shadow: 0 0 0 3px rgba(76,201,167,.1); }
+.client-edit small { color: var(--muted); font-size: .74rem; font-weight: 400; line-height: 1.45; }
+.client-edit-logo { display: flex; align-items: center; gap: 1rem; }
+.client-edit-logo-preview { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; overflow: hidden; border: 1px dashed var(--border); border-radius: 12px; color: var(--accent); font-size: 1.3rem; font-weight: 800; }
+.client-edit-logo-preview img { width: 56px; height: 56px; object-fit: contain; }
+.client-edit-logo-actions { display: grid; justify-items: start; gap: .35rem; min-width: 0; }
+.client-edit-file { position: relative; display: inline-flex !important; align-items: center; gap: .4rem; min-height: 36px; padding: .35rem .8rem; font-size: .82rem; cursor: pointer; }
+.client-edit-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.client-edit-check { display: flex !important; align-items: center; gap: .5rem !important; font-weight: 500 !important; cursor: pointer; }
+.client-edit-check input { width: 16px; height: 16px; accent-color: var(--accent); }
+.client-edit-switches { display: grid; gap: .5rem; }
+.client-edit-switch { display: flex !important; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem .85rem; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+.client-edit-switch > span { display: grid; gap: .15rem; }
+.client-edit-switch input { position: relative; flex: 0 0 auto; width: 40px; height: 22px; margin: 0; border-radius: 999px; background: rgba(127,127,127,.35); transition: background .15s; appearance: none; cursor: pointer; }
+.client-edit-switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.client-edit-switch input:checked { background: var(--accent); }
+.client-edit-switch input:checked::after { transform: translateX(18px); }
+.client-edit-switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.client-edit-danger { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1rem; margin: 1.25rem 1.35rem; padding: .85rem 1rem; border: 1px solid rgba(255,110,118,.3); border-radius: 10px; }
+.client-edit-danger > div { display: grid; gap: .15rem; max-width: 360px; font-size: .85rem; }
+.client-edit-danger-confirm { display: flex; flex-wrap: wrap; gap: .5rem; }
+.client-edit-danger .button { min-height: 36px; padding: .35rem .8rem; font-size: .82rem; }
+.client-edit-footer { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: .6rem; margin-top: auto; padding: .9rem 1.35rem; border-top: 1px solid var(--border); background: var(--panel-strong); }
+@media (max-width: 560px) { .client-edit-grid { grid-template-columns: 1fr; } .client-edit-logo { align-items: flex-start; } }
 .client-dialog-facts { display: grid; gap: .6rem; margin: 0 0 .5rem; }
 .client-dialog-facts div { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: .85rem; }
 .client-dialog-facts dd { margin: 0; color: var(--text); font-weight: 700; text-align: right; overflow-wrap: anywhere; }

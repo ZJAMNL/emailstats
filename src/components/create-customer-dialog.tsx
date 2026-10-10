@@ -53,9 +53,9 @@ export function CreateCustomerDialog({ owners, defaultOwnerId }: { owners: Owner
   );
 }
 
-export function OwnerSelect({ owners, defaultValue }: { owners: OwnerOption[]; defaultValue: string | null }) {
+export function OwnerSelect({ owners, defaultValue, hideLabel = false }: { owners: OwnerOption[]; defaultValue: string | null; hideLabel?: boolean }) {
   return (
-    <label>Beheerder
+    <label>{hideLabel ? <span className="sr-only">Beheerder</span> : "Beheerder"}
       <select name="ownerId" defaultValue={defaultValue ?? ""}>
         <option value="">Niet toegewezen (alleen superbeheerders)</option>
         {owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}

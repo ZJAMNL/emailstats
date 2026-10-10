@@ -107,7 +107,6 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
                 campaignCount: client._count.campaigns,
                 copernicaDatabaseId: client.copernica?.databaseId ?? null,
                 lastSyncedAt: client.copernica?.lastSyncedAt?.toISOString() ?? null,
-                selections: client.selections.map((selection) => ({ id: selection.id, name: selection.name, profileCount: selection.snapshots[0]?.profileCount ?? null })),
                 modules,
                 ownerId: client.ownerId,
               }} owners={isSuperAdmin ? owners.map(({ id, name }) => ({ id, name })) : null} />
