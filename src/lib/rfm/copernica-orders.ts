@@ -9,7 +9,7 @@ type CopernicaSubprofile = { ID: number | string; profile: number | string; fiel
 const pageSize = 1000;
 const pageConcurrency = 4;
 
-export type OrderFieldMapping = { dateField: string; amountField: string; statusField?: string | null };
+export type OrderFieldMapping = { dateField: string; amountField: string; statusField?: string | null; keyField?: string | null };
 
 export async function listCollections(jwt: string, databaseId: string) {
   const result = await copernicaGet<CopernicaList<CopernicaCollection>>(jwt, `database/${encodeURIComponent(databaseId)}/collections`, new URLSearchParams({ limit: "1000" }));
@@ -51,12 +51,40 @@ export async function fetchAllOrders(jwt: string, collectionId: string, mapping:
       .map((row): RfmOrder => {
         const fields = row.fields ?? {};
         return {
+          key: mapping.keyField ? String(fields[mapping.keyField] ?? "").trim() : String(row.ID),
           profileId: row.profile ? String(row.profile) : "",
           date: parseCopernicaDate(fields[mapping.dateField]),
           amount: parseAmount(fields[mapping.amountField]),
           status: mapping.statusField ? String(fields[mapping.statusField] ?? "") : null,
         };
       }),
+  };
+}
+
+export type SubprofileRow = { id: string; profile: string; fields: Record<string, unknown> };
+
+/**
+ * Every subprofile of a collection, optionally only those whose `since.field` is on or after
+ * `since.date`. Stops at `maxRows` and says so, rather than running past the function time limit.
+ */
+export async function fetchSubprofiles(jwt: string, collectionId: string, { since, maxRows }: { since?: { field: string; date: Date }; maxRows: number }) {
+  const path = `collection/${encodeURIComponent(collectionId)}/subprofiles`;
+  const pageParams = (start: number) => {
+    const params = new URLSearchParams({ start: String(start), limit: String(pageSize), total: "true", dataonly: "true" });
+    // Usable dates are ISO (parseCopernicaDate), so a text comparison is also correct for text fields.
+    if (since) params.append("fields[]", `${since.field}>=${since.date.toISOString().slice(0, 10)}`);
+    return params;
+  };
+  const first = await copernicaGet<CopernicaList<CopernicaSubprofile>>(jwt, path, pageParams(0));
+  const total = Number(first.total ?? first.data?.length ?? 0);
+  const starts: number[] = [];
+  for (let start = pageSize; start < Math.min(total, maxRows); start += pageSize) starts.push(start);
+  const pages = await mapInBatches(starts, pageConcurrency, (start) => copernicaGet<CopernicaList<CopernicaSubprofile>>(jwt, path, pageParams(start)));
+  const rows = [first, ...pages].flatMap((page) => page.data ?? []).filter((row) => !isTruthy(row.removed)).slice(0, maxRows);
+  return {
+    total,
+    truncated: total > maxRows,
+    rows: rows.map((row): SubprofileRow => ({ id: String(row.ID), profile: row.profile ? String(row.profile) : "", fields: row.fields ?? {} })),
   };
 }
 

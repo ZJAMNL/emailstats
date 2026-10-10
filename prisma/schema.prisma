@@ -32,28 +32,31 @@ model User {
 }
 
 model Tenant {
-  id            String               @id @default(cuid())
-  name          String
-  slug          String               @unique
-  logoDataUrl   String?              @db.Text
-  status        String               @default("active")
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  settings      Json                 @default("{}")
+  id               String                @id @default(cuid())
+  name             String
+  slug             String                @unique
+  logoDataUrl      String?               @db.Text
+  status           String                @default("active")
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  settings         Json                  @default("{}")
   /// The beheerder responsible for this customer. Without one, only superbeheerders see it.
-  ownerId       String?
-  owner         User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  users         User[]               @relation("TenantUsers")
-  campaigns     Campaign[]
-  copernica     CopernicaConnection?
-  selections    CopernicaSelection[]
-  rfmConfig     RfmConfig?
-  rfmScores     RfmProfileScore[]
-  rfmSnapshots  RfmSegmentSnapshot[]
-  webshops      Webshop[]
-  rfmWrites     RfmWriteBack[]
-  alertSettings AlertSettings?
-  alertEvents   AlertEvent[]
+  ownerId          String?
+  owner            User?                 @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  users            User[]                @relation("TenantUsers")
+  campaigns        Campaign[]
+  copernica        CopernicaConnection?
+  selections       CopernicaSelection[]
+  rfmConfig        RfmConfig?
+  rfmScores        RfmProfileScore[]
+  rfmSnapshots     RfmSegmentSnapshot[]
+  webshops         Webshop[]
+  rfmWrites        RfmWriteBack[]
+  alertSettings    AlertSettings?
+  alertEvents      AlertEvent[]
+  predictionConfig PredictionConfig?
+  predictions      ProfilePrediction[]
+  predictionWrites PredictionWriteBack[]
 
   @@index([ownerId])
 }
@@ -248,4 +251,62 @@ model AlertEvent {
 
   @@index([tenantId, ruleKey, subjectKey, triggeredAt])
   @@index([tenantId, triggeredAt])
+}
+
+/// Predictive models on order lines and web tracking. Needs the orders mapping of RfmConfig.
+model PredictionConfig {
+  tenantId           String    @id
+  lineCollectionId   String
+  lineCollectionName String
+  /// Field on the order line that points to the order; matched against orderKeyField (empty = order subprofile id).
+  lineOrderField     String
+  orderKeyField      String    @default("")
+  lineProductField   String
+  lineNameField      String?
+  lineCategoryField  String?
+  webCollectionId    String?
+  webCollectionName  String?
+  webDateField       String?
+  webProductField    String?
+  webCategoryField   String?
+  webEventField      String?
+  enabled            Boolean   @default(false)
+  writeBackEnabled   Boolean   @default(false)
+  lastRunAt          DateTime?
+  lastRunStatus      String?
+  /// The backtest report (src/lib/predict/model.ts PredictionReport).
+  lastRunSummary     Json?
+  lastWriteAt        DateTime?
+  lastWriteSummary   Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model ProfilePrediction {
+  tenantId            String
+  copernicaProfileId  String
+  isBuyer             Boolean
+  /// Chance of a purchase in the next 30 days; null when the model did not pass its backtest.
+  purchaseProbability Float?
+  intentBand          String?
+  favoriteCategory    String?
+  nextCategory        String?
+  recommendations     String[] @default([])
+  updatedAt           DateTime @updatedAt
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, copernicaProfileId])
+  @@index([tenantId, intentBand])
+}
+
+/// What was last written to each Copernica profile for the AI_ fields (RfmWriteBack does the same for RFM_).
+model PredictionWriteBack {
+  tenantId           String
+  copernicaProfileId String
+  hash               String
+  writtenAt          DateTime
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, copernicaProfileId])
 }

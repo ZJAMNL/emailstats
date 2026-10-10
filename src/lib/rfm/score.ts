@@ -1,6 +1,8 @@
 import { fmScore, segmentFor, type RfmSegmentKey } from "./segments";
 
 export type RfmOrder = {
+  /** Identifies the order for order lines: the chosen key field, else the subprofile id. */
+  key?: string;
   profileId: string;
   date: Date | null;
   amount: number | null;

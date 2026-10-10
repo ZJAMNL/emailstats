@@ -310,6 +310,31 @@ td { color: #dfe9f5; }
 .customer-alert details p { margin-top: .35rem; }
 .customer-alerts-empty { display: flex; align-items: center; gap: .5rem; margin: 0; color: var(--accent); }
 .customer-alerts-note { display: flex; align-items: center; gap: .4rem; margin: .9rem 0 0; color: var(--muted); font-size: .76rem; }
+.predict-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.predict-card { display: grid; align-content: start; gap: .7rem; }
+.predict-card .eyebrow { margin: 0; }
+.predict-verdict { justify-self: start; padding: .3rem .7rem; border-radius: 999px; font-size: .78rem; font-weight: 800; }
+.predict-verdict.is-sterk { background: rgba(76,201,167,.14); color: var(--accent); }
+.predict-verdict.is-matig { background: rgba(224,170,80,.14); color: #e0aa50; }
+.predict-verdict.is-onvoldoende { background: rgba(255,110,118,.12); color: #ff9aa0; }
+.predict-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .75rem; margin: 0; }
+.predict-figures div { display: grid; gap: .1rem; }
+.predict-figures dt { color: var(--muted); font-size: .74rem; }
+.predict-figures dd { margin: 0; font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.predict-figures small { color: var(--muted); font-size: .72rem; }
+.predict-proof { margin: 0; font-size: .85rem; line-height: 1.5; }
+.predict-card details summary { color: var(--accent); font-size: .82rem; font-weight: 700; cursor: pointer; }
+.predict-drivers { display: grid; gap: .35rem; margin: .5rem 0 0; padding: 0; list-style: none; font-size: .82rem; }
+.predict-drivers li { display: flex; justify-content: space-between; gap: .75rem; }
+.predict-setup { display: grid; gap: 1rem; }
+.predict-step { display: grid; gap: .8rem; min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; }
+.predict-step legend { display: inline-flex; align-items: center; gap: .4rem; padding: 0 .35rem; font-weight: 800; }
+.predict-step label, .predict-fields label { display: grid; gap: .3rem; color: var(--muted); font-size: .8rem; }
+.predict-step select { min-height: 40px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-strong); color: var(--text); font: inherit; }
+.predict-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .8rem; }
+.predict-consent { align-items: flex-start; line-height: 1.45; }
+:root[data-theme="light"] .predict-verdict.is-matig { color: #8a6418; }
+:root[data-theme="light"] .predict-verdict.is-onvoldoende { color: #b03a43; }
 .admin-table td { vertical-align: middle; }
 .admin-self { color: var(--muted); }
 .admin-inline-form { display: flex; align-items: center; gap: .5rem; }
