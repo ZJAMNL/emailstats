@@ -299,6 +299,8 @@ td { color: #dfe9f5; }
 :root[data-theme="light"] .alerts-severity.is-critical { color: #b03a43; }
 :root[data-theme="light"] .alerts-severity.is-warning { color: #8a6418; }
 :root[data-theme="light"] .alerts-thresholds input { background: #fff; }
+/* First block on the dashboard, above the metric row: same 1rem rhythm as the panels below it. */
+.customer-alerts { margin: 0 0 1rem; }
 .customer-alert-list { display: grid; gap: .7rem; margin: 0; padding: 0; list-style: none; }
 .customer-alert { display: grid; gap: .35rem; padding: .85rem 1rem; border: 1px solid var(--border); border-left: 4px solid #e0aa50; border-radius: 10px; }
 .customer-alert.is-critical { border-left-color: #ff6e76; }
