@@ -335,6 +335,24 @@ td { color: #dfe9f5; }
 .predict-consent { align-items: flex-start; line-height: 1.45; }
 .insights-legacy { display: grid; gap: .5rem; margin-top: 1.25rem; padding: .9rem 1rem; border: 1px dashed var(--border); border-radius: 12px; }
 .insights-legacy .eyebrow, .insights-legacy .rfm-hint { margin: 0; }
+.insights-overview { display: grid; gap: 1rem; }
+.insights-overview > .rfm-meta { margin: 0; }
+.insights-audiences { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; }
+.insights-audience { display: grid; align-content: start; gap: .35rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; }
+.insights-audience > span { color: var(--muted); font-size: .8rem; font-weight: 700; }
+.insights-audience strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.insights-audience small { color: var(--accent); font-size: .76rem; }
+.insights-audience p { margin: .2rem 0; font-size: .84rem; line-height: 1.5; }
+.insights-audience code { padding: .45rem .55rem; border-radius: 8px; background: rgba(255,255,255,.04); color: var(--muted); font-size: .72rem; line-height: 1.45; white-space: normal; }
+.insights-cell-note { display: block; color: var(--muted); font-size: .72rem; }
+.insights-bars { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.insights-bars li { display: grid; grid-template-columns: minmax(90px, 1.2fr) 2fr auto; align-items: center; gap: .6rem; font-size: .84rem; }
+.insights-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insights-bar-track { height: 8px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.06); }
+.insights-bar-track span { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.insights-bar-value { color: var(--muted); font-variant-numeric: tabular-nums; }
+:root[data-theme="light"] .insights-audience code { background: #f3f5f8; }
+:root[data-theme="light"] .insights-bar-track { background: #e8edf2; }
 :root[data-theme="light"] .predict-verdict.is-matig { color: #8a6418; }
 :root[data-theme="light"] .predict-verdict.is-onvoldoende { color: #b03a43; }
 .admin-table td { vertical-align: middle; }

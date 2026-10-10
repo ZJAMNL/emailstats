@@ -69,6 +69,7 @@ export function ClientEditDialog({ client, owners }: { client: ClientEditDialogC
               <legend>Widgets op het klantdashboard</legend>
               <label><input name="databaseStats" type="checkbox" defaultChecked={client.modules.databaseStats} /> Database- en selectiestatistieken</label>
               <label><input name="campaignStats" type="checkbox" defaultChecked={client.modules.campaignStats} /> E-mailcampagnestatistieken</label>
+              <label><input name="insights" type="checkbox" defaultChecked={client.modules.insights} /> Klantinzichten (RFM en voorspellingen)</label>
             </fieldset>
             <div className="customer-dialog-actions">
               <button className="button button-secondary" onClick={closeDialog} type="button">Annuleren</button>

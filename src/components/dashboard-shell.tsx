@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, BookOpen, Database, Gem, LayoutDashboard, LogOut, Mail, ShieldCheck, UserCog, Users } from "lucide-react";
+import { BarChart3, BookOpen, Database, Gem, LayoutDashboard, Lightbulb, LogOut, Mail, ShieldCheck, UserCog, Users } from "lucide-react";
 import { signOutAction, stopImpersonationAction } from "@/app/actions";
 import { requireAdmin } from "@/lib/admin-access";
 import { getSession } from "@/lib/session";
@@ -37,6 +37,7 @@ export async function DashboardShell({
     { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Beheer", icon: role === "admin" ? Users : Database },
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
     ...(showRfm && canManage ? [{ href: "/dashboard/customer/rfm", label: "RFM-model", icon: Gem }] : []),
+    ...(role === "customer" && modules?.insights && canManage ? [{ href: "/dashboard/customer/klantinzichten", label: "Klantinzichten", icon: Lightbulb }] : []),
     ...(adminRole === "superadmin" ? [{ href: "/dashboard/admin/beheerders", label: "Beheerders", icon: UserCog }] : []),
     ...(role === "customer" ? [{ href: "/dashboard/customer/uitleg", label: "Uitleg modellen", icon: BookOpen }] : []),
   ].filter((link) => (link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false) && (link.href !== "/dashboard/customer/data" || canManage));
