@@ -48,6 +48,7 @@ export type ProfilePredictionResult = {
   recommendations: string[];
   /** Product names of the recommendations, in the same order (the id when no name is known). */
   recommendationNames: string[];
+  recommendationCategories: (string | null)[];
   lastVisitAt: Date | null;
 };
 
@@ -147,6 +148,7 @@ export function buildPredictions(data: PredictData, now: Date): { report: Predic
       nextCategory: recommendationUsable ? recommendedCategories(recommender, products)[0] ?? null : null,
       recommendations: products,
       recommendationNames: products.map((product) => recommender.name.get(product) ?? product),
+      recommendationCategories: products.map((product) => recommender.category.get(product) ?? null),
       lastVisitAt: lastVisit.has(row.profileId) ? new Date(lastVisit.get(row.profileId)!) : null,
     };
   });

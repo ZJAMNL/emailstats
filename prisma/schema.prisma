@@ -291,32 +291,36 @@ model PredictionConfig {
 }
 
 model ProfilePrediction {
-  tenantId            String
-  copernicaProfileId  String
-  isBuyer             Boolean
+  tenantId                 String
+  copernicaProfileId       String
+  isBuyer                  Boolean
   /// Chance of a purchase in the next 30 days; null when the model did not pass its backtest.
-  purchaseProbability Float?
-  intentBand          String?
-  favoriteCategory    String?
-  nextCategory        String?
-  recommendations     String[]  @default([])
-  recommendationNames String[]  @default([])
-  lastVisitAt         DateTime?
-  updatedAt           DateTime  @updatedAt
-  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseProbability      Float?
+  intentBand               String?
+  favoriteCategory         String?
+  nextCategory             String?
+  recommendations          String[]  @default([])
+  recommendationNames      String[]  @default([])
+  recommendationCategories String[]  @default([])
+  lastVisitAt              DateTime?
+  updatedAt                DateTime  @updatedAt
+  tenant                   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([tenantId, copernicaProfileId])
   @@index([tenantId, intentBand])
 }
 
-/// One row per profile in the Copernica collection "Klantinzichten": which subprofile holds it and what was written.
+/// One record per insight per profile in the Copernica collection "Klantinzichten" (segment, koopintentie,
+/// each recommendation, ...): which subprofile holds it and what was written.
 model InsightWriteBack {
   tenantId           String
   copernicaProfileId String
+  /// Which insight this record is, e.g. "segment", "koopintentie" or "aanbeveling_2".
+  insightKey         String
   subprofileId       String
   hash               String
   writtenAt          DateTime
   tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@id([tenantId, copernicaProfileId])
+  @@id([tenantId, copernicaProfileId, insightKey])
 }

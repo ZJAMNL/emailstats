@@ -10,7 +10,7 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const noAccess = { ok: false as const, error: "Je hebt geen toegang tot deze klant." };
 
-export async function ensureInsightsCollectionAction(tenantId: string): Promise<Result<{ createdCollection: boolean; createdFields: string[] }>> {
+export async function ensureInsightsCollectionAction(tenantId: string): Promise<Result<{ createdCollection: boolean; createdFields: string[]; removedFields: string[] }>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
   try {
     const result = await ensureInsightsCollection(tenantId);

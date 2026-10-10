@@ -33,7 +33,7 @@ describe("Klantinzichten summary", () => {
     expect(audiences.at_risk.detail).toBe("waarvan 20 nog koopintentie tonen");
     expect(audiences.champions.profiles).toBe(40);
     expect(audiences.sleeping_interest.profiles).toBe(4);
-    expect(audiences.prospects_high.condition).toContain("Klantinzichten");
+    expect(audiences.prospects_high.condition).toContain("Type = Koopintentie en Waarde = Hoog");
   });
 
   it("only offers target groups whose data is available", () => {

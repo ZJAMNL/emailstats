@@ -96,7 +96,7 @@ export function InsightsOverviewView({ overview }: { overview: InsightsOverview 
             <thead><tr><th>Product</th><th>Product-ID</th><th>Aanbevolen aan</th><th>Als eerste aanbeveling</th></tr></thead>
             <tbody>{overview.recommendedProducts.map((product) => <tr key={product.id}><td>{product.name && product.name !== product.id ? product.name : "—"}</td><td><code>{product.id}</code></td><td>{number.format(product.profiles)}</td><td>{number.format(product.first)}</td></tr>)}</tbody>
           </table></div>
-          <p className="rfm-hint">Handig voor voorraad en content: deze producten verschijnen het vaakst in Aanbeveling_1 t/m 3 van {INSIGHTS_COLLECTION}.</p>
+          <p className="rfm-hint">Handig voor voorraad en content: deze producten verschijnen het vaakst als productaanbeveling in {INSIGHTS_COLLECTION}.</p>
         </section>
       ) : null}
     </div>

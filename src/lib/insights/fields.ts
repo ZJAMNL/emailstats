@@ -1,84 +1,106 @@
 import { rfmSegmentByKey, type RfmSegmentKey } from "../rfm/segments";
 
-/** The Copernica collection with one row per profile: RFM and predictions, kept out of the profile itself. */
+/**
+ * The Copernica collection with the customer insights: one record per insight per profile
+ * (segment, purchase intent, each recommended product, ...), like orders or order lines.
+ */
 export const INSIGHTS_COLLECTION = "Klantinzichten";
-export const INSIGHTS_DESCRIPTION = "Klantwaarde (RFM) en voorspellingen per profiel, bijgewerkt door het E-mail Statistieken-dashboard.";
+export const INSIGHTS_DESCRIPTION = "Klantinzichten per profiel (één record per inzicht), bijgewerkt door het E-mail Statistieken-dashboard.";
 
-export type InsightField = { name: string; type: "text" | "integer" | "float" | "empty_date"; length?: number; index: boolean; group: "rfm" | "ai" | "meta"; description: string };
+export type InsightField = { name: string; type: "text" | "integer" | "float" | "empty_date"; length?: number; index: boolean; description: string };
 
 export const insightFields: InsightField[] = [
-  { name: "Segment", type: "text", length: 50, index: true, group: "rfm", description: "Segment volgens het RFM-model, bijv. Kampioenen of Risico" },
-  { name: "RFM_Score", type: "text", length: 3, index: false, group: "rfm", description: "Scores voor Recency, Frequency en Monetary (1–5), bijv. 545" },
-  { name: "Vorig_Segment", type: "text", length: 50, index: false, group: "rfm", description: "Het vorige, andere segment van deze klant" },
-  { name: "Klantwaarde", type: "float", index: false, group: "rfm", description: "Voorspelde omzet in de komende 12 maanden (euro)" },
-  { name: "Kans_Actief", type: "integer", index: false, group: "rfm", description: "Kans dat de klant nog actief is (0–100)" },
-  { name: "Klanttype", type: "text", length: 20, index: true, group: "ai", description: "Koper of Prospect (nog geen aankoop, wel websitebezoek)" },
-  { name: "Koopkans", type: "integer", index: false, group: "ai", description: "Kans op een aankoop in de komende 30 dagen (0–100)" },
-  { name: "Koopintentie", type: "text", length: 20, index: true, group: "ai", description: "Hoog, Midden of Laag ten opzichte van andere kopers of prospects" },
-  { name: "Favoriete_Categorie", type: "text", length: 100, index: true, group: "ai", description: "Categorie die deze klant het vaakst kocht" },
-  { name: "Volgende_Categorie", type: "text", length: 100, index: true, group: "ai", description: "Waarschijnlijk volgende categorie" },
-  { name: "Aanbeveling_1_ID", type: "text", length: 100, index: false, group: "ai", description: "Aanbevolen product (product-ID/SKU)" },
-  { name: "Aanbeveling_1_Naam", type: "text", length: 150, index: false, group: "ai", description: "Naam van het aanbevolen product" },
-  { name: "Aanbeveling_2_ID", type: "text", length: 100, index: false, group: "ai", description: "Tweede aanbevolen product (product-ID/SKU)" },
-  { name: "Aanbeveling_2_Naam", type: "text", length: 150, index: false, group: "ai", description: "Naam van het tweede aanbevolen product" },
-  { name: "Aanbeveling_3_ID", type: "text", length: 100, index: false, group: "ai", description: "Derde aanbevolen product (product-ID/SKU)" },
-  { name: "Aanbeveling_3_Naam", type: "text", length: 150, index: false, group: "ai", description: "Naam van het derde aanbevolen product" },
-  { name: "Laatste_Websitebezoek", type: "empty_date", index: false, group: "ai", description: "Datum van het laatste websitebezoek" },
-  { name: "Gewijzigd", type: "empty_date", index: false, group: "meta", description: "Datum waarop een waarde in deze rij voor het laatst veranderde" },
+  { name: "Type", type: "text", length: 50, index: true, description: "Soort inzicht, bijv. Segment, Koopintentie of Productaanbeveling" },
+  { name: "Waarde", type: "text", length: 150, index: true, description: "De uitkomst, bijv. Kampioenen, Hoog, een categorie of een productnaam" },
+  { name: "Score", type: "float", index: false, description: "Getal bij het inzicht: klantwaarde in euro of koopkans in procent" },
+  { name: "Rang", type: "integer", index: false, description: "Volgorde binnen hetzelfde type, bijv. 1 t/m 3 bij aanbevelingen" },
+  { name: "Product_ID", type: "text", length: 100, index: true, description: "Product-ID/SKU (alleen bij Productaanbeveling)" },
+  { name: "Categorie", type: "text", length: 100, index: true, description: "Categorie van het aanbevolen product" },
+  { name: "Toelichting", type: "text", length: 255, index: false, description: "Extra context, bijv. de RFM-score of de kans dat de klant actief is" },
+  { name: "Datum", type: "empty_date", index: false, description: "Datum bij het inzicht, bijv. het laatste websitebezoek" },
+  { name: "Bron", type: "text", length: 20, index: false, description: "RFM of Voorspelling" },
+  { name: "Gewijzigd", type: "empty_date", index: false, description: "Datum waarop dit record voor het laatst veranderde" },
+];
+
+/** Fields of the first version (one wide row per profile); removed from the collection when found. */
+export const obsoleteInsightFields = ["Segment", "RFM_Score", "Vorig_Segment", "Klantwaarde", "Kans_Actief", "Klanttype", "Koopkans", "Koopintentie", "Favoriete_Categorie", "Volgende_Categorie", "Aanbeveling_1_ID", "Aanbeveling_1_Naam", "Aanbeveling_2_ID", "Aanbeveling_2_Naam", "Aanbeveling_3_ID", "Aanbeveling_3_Naam", "Laatste_Websitebezoek"];
+
+export type InsightTypeInfo = { type: string; source: "rfm" | "ai"; example: string; use: string };
+
+/** The kinds of records, for the explanation on the settings pages. */
+export const insightTypes: InsightTypeInfo[] = [
+  { type: "Segment", source: "rfm", example: "Waarde = Kampioenen, Toelichting = RFM-score 545 · vorig segment Loyale klanten", use: "Selectie op segment, bijv. winback voor Risico" },
+  { type: "Klantwaarde", source: "rfm", example: "Score = 812 (euro, komende 12 maanden), Toelichting = kans actief 93%", use: "Selectie op waarde, bijv. Score groter dan 500" },
+  { type: "Klanttype", source: "ai", example: "Waarde = Koper of Prospect", use: "Kopers en prospects apart benaderen" },
+  { type: "Koopintentie", source: "ai", example: "Waarde = Hoog, Score = 42 (kans in procent op aankoop in 30 dagen)", use: "Selectie op Hoog, of op Score" },
+  { type: "Favoriete categorie", source: "ai", example: "Waarde = Kamperen", use: "Content afstemmen op wat iemand meestal koopt" },
+  { type: "Volgende categorie", source: "ai", example: "Waarde = Koken", use: "Cross-sell naar de waarschijnlijk volgende categorie" },
+  { type: "Productaanbeveling", source: "ai", example: "Rang = 1, Waarde = productnaam, Product_ID, Categorie (tot 3 records)", use: "In een mailing de records op Rang tonen" },
+  { type: "Websitebezoek", source: "ai", example: "Datum = laatste bezoek", use: "Timing, bijv. bezocht in de afgelopen week" },
 ];
 
 export type RfmInsight = { segment: string; previousSegment: string | null; r: number; f: number; m: number; predictedClv: unknown; probabilityAlive: number | null };
-export type AiInsight = { isBuyer: boolean; purchaseProbability: number | null; intentBand: string | null; favoriteCategory: string | null; nextCategory: string | null; recommendations: string[]; recommendationNames: string[]; lastVisitAt: Date | null };
+export type AiInsight = { isBuyer: boolean; purchaseProbability: number | null; intentBand: string | null; favoriteCategory: string | null; nextCategory: string | null; recommendations: string[]; recommendationNames: string[]; recommendationCategories?: (string | null)[]; lastVisitAt: Date | null };
+
+export type InsightRecord = { key: string; fields: Record<string, string | number>; hash: string };
 
 const label = (segment: string | null) => (segment ? rfmSegmentByKey.get(segment as RfmSegmentKey)?.label ?? segment : "");
 const cut = (value: string | null | undefined, length: number) => (value ?? "").slice(0, length);
+const day = (date: Date) => date.toISOString().slice(0, 10);
 
 /**
- * The row for one profile. Parts that are switched off (or absent for this profile) stay empty.
- * The hash ignores small day-to-day drift in value and probabilities, so only real changes are written.
+ * All insight records of one profile, keyed so each record can be updated in place.
+ * The hash per record ignores small day-to-day drift (value in tens of euros, chance in 5-point steps).
  */
-export function desiredInsightFields(rfm: RfmInsight | null, ai: AiInsight | null, today: string) {
-  const clv = rfm && rfm.predictedClv !== null && rfm.predictedClv !== undefined ? Number(rfm.predictedClv) : null;
-  const alive = rfm?.probabilityAlive === null || rfm?.probabilityAlive === undefined ? null : Math.round(rfm.probabilityAlive * 100);
-  const chance = ai?.purchaseProbability === null || ai?.purchaseProbability === undefined ? null : Math.round(ai.purchaseProbability * 100);
-  const lastVisit = ai?.lastVisitAt ? ai.lastVisitAt.toISOString().slice(0, 10) : "";
-  const fields = {
-    Segment: rfm ? label(rfm.segment) : "",
-    RFM_Score: rfm ? `${rfm.r}${rfm.f}${rfm.m}` : "",
-    Vorig_Segment: rfm ? label(rfm.previousSegment) : "",
-    Klantwaarde: clv === null ? 0 : Math.round(clv),
-    Kans_Actief: alive ?? 0,
-    Klanttype: ai ? (ai.isBuyer ? "Koper" : "Prospect") : "",
-    Koopkans: chance ?? 0,
-    Koopintentie: ai?.intentBand ?? "",
-    Favoriete_Categorie: cut(ai?.favoriteCategory, 100),
-    Volgende_Categorie: cut(ai?.nextCategory, 100),
-    Aanbeveling_1_ID: cut(ai?.recommendations[0], 100),
-    Aanbeveling_1_Naam: cut(ai?.recommendationNames[0], 150),
-    Aanbeveling_2_ID: cut(ai?.recommendations[1], 100),
-    Aanbeveling_2_Naam: cut(ai?.recommendationNames[1], 150),
-    Aanbeveling_3_ID: cut(ai?.recommendations[2], 100),
-    Aanbeveling_3_Naam: cut(ai?.recommendationNames[2], 150),
-    Laatste_Websitebezoek: lastVisit,
-    Gewijzigd: today,
+export function desiredInsightRecords(rfm: RfmInsight | null, ai: AiInsight | null, today: string): InsightRecord[] {
+  const records: InsightRecord[] = [];
+  const add = (key: string, source: "RFM" | "Voorspelling", values: { Type: string; Waarde?: string; Score?: number; Rang?: number; Product_ID?: string; Categorie?: string; Toelichting?: string; Datum?: string }, hash: (string | number)[]) => {
+    records.push({
+      key,
+      fields: { Type: values.Type, Waarde: cut(values.Waarde, 150), Score: values.Score ?? 0, Rang: values.Rang ?? 1, Product_ID: cut(values.Product_ID, 100), Categorie: cut(values.Categorie, 100), Toelichting: cut(values.Toelichting, 255), Datum: values.Datum ?? "", Bron: source, Gewijzigd: today },
+      hash: [values.Type, ...hash].join("~"),
+    });
   };
-  const hash = [
-    rfm ? [rfm.segment, fields.RFM_Score, rfm.previousSegment ?? "", clv === null ? "" : Math.round(clv / 10), alive === null ? "" : Math.round(alive / 10)].join("~") : "-",
-    ai ? [fields.Klanttype, chance === null ? "" : Math.round(chance / 5), fields.Koopintentie, fields.Favoriete_Categorie, fields.Volgende_Categorie, ...ai.recommendations.slice(0, 3), lastVisit].join("~") : "-",
-  ].join("|");
-  return { fields, hash };
+
+  if (rfm) {
+    const previous = label(rfm.previousSegment);
+    const score = `${rfm.r}${rfm.f}${rfm.m}`;
+    add("segment", "RFM", { Type: "Segment", Waarde: label(rfm.segment), Toelichting: `RFM-score ${score}${previous ? ` · vorig segment ${previous}` : ""}` }, [rfm.segment, score, rfm.previousSegment ?? ""]);
+    const clv = rfm.predictedClv === null || rfm.predictedClv === undefined ? null : Number(rfm.predictedClv);
+    const alive = rfm.probabilityAlive === null ? null : Math.round(rfm.probabilityAlive * 100);
+    if (clv !== null) add("klantwaarde", "RFM", { Type: "Klantwaarde", Waarde: `€ ${Math.round(clv).toLocaleString("nl-NL")}`, Score: Math.round(clv), Toelichting: alive === null ? "" : `Kans actief ${alive}%` }, [Math.round(clv / 10), alive === null ? "" : Math.round(alive / 10)]);
+  }
+
+  if (ai) {
+    add("klanttype", "Voorspelling", { Type: "Klanttype", Waarde: ai.isBuyer ? "Koper" : "Prospect" }, [ai.isBuyer ? "Koper" : "Prospect"]);
+    const chance = ai.purchaseProbability === null ? null : Math.round(ai.purchaseProbability * 100);
+    if (chance !== null && ai.intentBand) add("koopintentie", "Voorspelling", { Type: "Koopintentie", Waarde: ai.intentBand, Score: chance, Toelichting: `${chance}% kans op een aankoop in de komende 30 dagen` }, [ai.intentBand, Math.round(chance / 5)]);
+    if (ai.favoriteCategory) add("favoriete_categorie", "Voorspelling", { Type: "Favoriete categorie", Waarde: ai.favoriteCategory }, [ai.favoriteCategory]);
+    if (ai.nextCategory) add("volgende_categorie", "Voorspelling", { Type: "Volgende categorie", Waarde: ai.nextCategory }, [ai.nextCategory]);
+    ai.recommendations.slice(0, 3).forEach((productId, index) => {
+      const name = ai.recommendationNames[index] ?? productId;
+      const category = ai.recommendationCategories?.[index] ?? "";
+      add(`aanbeveling_${index + 1}`, "Voorspelling", { Type: "Productaanbeveling", Waarde: name, Rang: index + 1, Product_ID: productId, Categorie: category ?? "" }, [productId, name, category ?? ""]);
+    });
+    if (ai.lastVisitAt) add("websitebezoek", "Voorspelling", { Type: "Websitebezoek", Waarde: "Laatste bezoek", Datum: day(ai.lastVisitAt) }, [day(ai.lastVisitAt)]);
+  }
+  return records;
+}
+
+export type InsightTask = { profileId: string; insightKey: string; action: "create" | "update" | "delete" };
+
+/** Map key for one record of one profile. */
+export const recordKey = (profileId: string, insightKey: string) => `${profileId}\u0000${insightKey}`;
+
+/** New records, changed records, and records that no longer apply (profile dropped out, or fewer recommendations). */
+export function planInsightWrites(desired: Map<string, string>, written: Map<string, string>): InsightTask[] {
+  const split = (key: string) => { const [profileId, insightKey] = key.split("\u0000"); return { profileId, insightKey }; };
+  return [
+    ...[...desired].filter(([key]) => !written.has(key)).map(([key]) => ({ ...split(key), action: "create" as const })),
+    ...[...desired].filter(([key, hash]) => written.has(key) && written.get(key) !== hash).map(([key]) => ({ ...split(key), action: "update" as const })),
+    ...[...written.keys()].filter((key) => !desired.has(key)).map((key) => ({ ...split(key), action: "delete" as const })),
+  ];
 }
 
 /** Empty values for the old RFM_ profile fields, used when the transition period ends. */
 export const emptyLegacyRfmProfileFields = { RFM_Segment: "", RFM_Score: "", RFM_Vorig_Segment: "", RFM_Klantwaarde: 0, RFM_Kans_Actief: 0, RFM_Gewijzigd: "" };
-
-export type InsightTask = { profileId: string; action: "create" | "update" | "delete" };
-
-/** New rows, changed rows and rows of profiles that dropped out of both models. */
-export function planInsightWrites(desired: Map<string, string>, written: Map<string, string>): InsightTask[] {
-  return [
-    ...[...desired].filter(([profileId]) => !written.has(profileId)).map(([profileId]) => ({ profileId, action: "create" as const })),
-    ...[...desired].filter(([profileId, hash]) => written.has(profileId) && written.get(profileId) !== hash).map(([profileId]) => ({ profileId, action: "update" as const })),
-    ...[...written.keys()].filter((profileId) => !desired.has(profileId)).map((profileId) => ({ profileId, action: "delete" as const })),
-  ];
-}
