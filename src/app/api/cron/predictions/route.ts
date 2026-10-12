@@ -6,7 +6,7 @@ import { runPredictions } from "@/lib/predict/run";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-/** Nightly, after RFM: recalculate the predictive models. Writing to Copernica happens in /api/cron/insights. */
+/** Nightly, after RFM: recalculate the predictive models. Writing the expected orders to Copernica happens in /api/cron/forecast. */
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCron(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Database is not configured" }, { status: 503 });

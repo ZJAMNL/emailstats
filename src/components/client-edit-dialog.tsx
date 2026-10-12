@@ -24,7 +24,8 @@ export type ClientEditDialogClient = {
 const visibilityOptions: { name: keyof TenantDashboardModules; title: string; description: string }[] = [
   { name: "databaseStats", title: "Database en selecties", description: "Profielaantallen en de gevolgde Copernica-selecties." },
   { name: "campaignStats", title: "E-mailcampagnes", description: "Verzonden mailings met open rate en CTR." },
-  { name: "insights", title: "Klantinzichten", description: "RFM-segmenten, koopintentie, categorieën en doelgroepen." },
+  { name: "insight", title: "Inzicht", description: "RFM-segmenten, klantwaarde, cohortanalyse en ontwikkeling." },
+  { name: "forecast", title: "Voorspellen en advies", description: "Verwachte omzet en productgroepen, verwachte bestellingen en doelgroepen." },
 ];
 
 /**

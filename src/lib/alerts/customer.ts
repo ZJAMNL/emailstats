@@ -18,7 +18,7 @@ export async function loadCustomerAlerts(tenantId: string, now = new Date()): Pr
     select: {
       settings: true,
       alertSettings: { select: { enabled: true } },
-      rfmConfig: { select: { enabled: true, customerVisible: true } },
+      rfmConfig: { select: { enabled: true } },
       alertEvents: { where: { triggeredAt: { gte: new Date(now.getTime() - CUSTOMER_ALERT_DAYS * dayMs) } }, orderBy: { triggeredAt: "desc" }, take: 50 },
     },
   });
@@ -29,7 +29,7 @@ export async function loadCustomerAlerts(tenantId: string, now = new Date()): Pr
     database: modules.databaseStats,
     campaigns: modules.campaignStats,
     deliverability: modules.campaignStats,
-    rfm: Boolean(tenant.rfmConfig?.enabled && tenant.rfmConfig.customerVisible),
+    rfm: Boolean(tenant.rfmConfig?.enabled && modules.insight),
     technical: true,
   };
 

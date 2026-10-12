@@ -41,7 +41,8 @@ export function CreateCustomerDialog({ owners, defaultOwnerId }: { owners: Owner
             <legend>Widgets op het klantdashboard</legend>
             <label><input name="databaseStats" type="checkbox" defaultChecked /> Database- en selectiestatistieken</label>
             <label><input name="campaignStats" type="checkbox" defaultChecked /> E-mailcampagnestatistieken</label>
-            <label><input name="insights" type="checkbox" /> Klantinzichten (RFM en voorspellingen)</label>
+            <label><input name="insight" type="checkbox" /> Inzicht (RFM, klantwaarde, cohorten)</label>
+            <label><input name="forecast" type="checkbox" /> Voorspellen en advies</label>
           </fieldset>
           <div className="customer-dialog-actions">
             <button className="button button-secondary" onClick={closeDialog} type="button">Annuleren</button>

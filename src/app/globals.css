@@ -337,6 +337,41 @@ td { color: #dfe9f5; }
 .predict-consent { align-items: flex-start; line-height: 1.45; }
 .insights-legacy { display: grid; gap: .5rem; margin-top: 1.25rem; padding: .9rem 1rem; border: 1px dashed var(--border); border-radius: 12px; }
 .insights-legacy .eyebrow, .insights-legacy .rfm-hint { margin: 0; }
+/* Inzicht and Voorspellen en advies: short summaries, details behind "Meer tonen". */
+.insight-view, .forecast-view { display: grid; gap: 1rem; }
+.insight-view > .rfm-kpis, .forecast-view > .rfm-kpis { margin: 0; }
+.summary-section .panel-heading { margin-bottom: .6rem; }
+.summary-section-summary p { margin: 0; line-height: 1.55; }
+.insight-chips { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.insight-chips li { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .7rem; border: 1px solid var(--border); border-radius: 999px; font-size: .84rem; }
+.insight-chips small { color: var(--muted); }
+.show-more { margin-top: .85rem; }
+.show-more > summary { display: inline-flex; align-items: center; gap: .35rem; color: var(--accent); font-size: .84rem; font-weight: 700; list-style: none; cursor: pointer; }
+.show-more > summary::-webkit-details-marker { display: none; }
+.show-more > summary::after { content: "▾"; font-size: .75rem; transition: transform .15s; }
+.show-more[open] > summary::after { transform: rotate(180deg); }
+.show-more .show-more-open, .show-more[open] .show-more-closed { display: none; }
+.show-more[open] .show-more-open { display: inline; }
+.show-more-body { display: grid; gap: 1rem; margin-top: 1rem; }
+.show-more-body h3 { margin: .5rem 0 .25rem; font-size: .95rem; }
+.show-more-body .panel-grid { margin-top: 0; }
+.insights-audience .show-more { margin-top: .2rem; }
+.insights-audience .show-more > summary { font-size: .76rem; }
+.insights-audience .show-more-body { margin-top: .4rem; }
+.forecast-writeback { display: grid; gap: 1rem; }
+.forecast-mapping { display: grid; gap: .9rem; padding: 1rem; border: 1px solid var(--border); border-radius: 12px; }
+.forecast-mapping-collection { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem; }
+.forecast-mapping-collection > label { flex: 1 1 260px; }
+.forecast-mapping-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+.forecast-mapping-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; }
+.forecast-writeback label { display: grid; gap: .35rem; color: var(--text); font-size: .8rem; font-weight: 700; }
+.forecast-writeback label small { color: var(--muted); font-weight: 400; }
+.forecast-writeback select { min-height: 40px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-strong); color: var(--text); font: inherit; font-weight: 400; }
+.forecast-writeback .rfm-check { display: flex; align-items: center; gap: .5rem; }
+.further-predictions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; }
+.further-predictions article { display: grid; gap: .3rem; padding: .9rem 1rem; border: 1px dashed var(--border); border-radius: 12px; }
+.further-predictions p { margin: 0; font-size: .84rem; line-height: 1.5; }
+.further-predictions small { color: var(--muted); font-size: .74rem; }
 .insights-overview { display: grid; gap: 1rem; }
 .insights-overview > .rfm-meta { margin: 0; }
 .insights-audiences { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; }

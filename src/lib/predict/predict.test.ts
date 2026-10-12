@@ -186,3 +186,16 @@ describe("assemblePredictData", () => {
     expect(quality.eventsWithoutDate).toBe(1);
   });
 });
+
+describe("forecast in the report", () => {
+  it("lets the product groups add up to the expected revenue", () => {
+    const { report } = buildPredictions(syntheticShop(7, true), now);
+    const forecast = report.forecast!;
+    expect(forecast.available).toBe(true);
+    const total = forecast.existing!.revenue30 + (forecast.newCustomers?.revenue30 ?? 0);
+    const groups = forecast.categories.reduce((sum, category) => sum + category.revenue, 0);
+    // All categories fit in the top 10 here, so they add up exactly.
+    expect(Math.abs(groups - total)).toBeLessThan(0.01 * total);
+    expect(forecast.backtest).not.toBeNull();
+  });
+});

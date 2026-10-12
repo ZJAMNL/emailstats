@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, BrainCircuit, Database, Eye, Gem, KeyRound, Lightbulb, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Database, Eye, Gem, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { impersonateCustomerAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
 import { AdminAlerts } from "@/components/admin-alerts";
@@ -98,9 +98,8 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       {query.error === "settings-save-failed" ? <p className="form-error" role="alert">De statistiekinstellingen zijn niet opgeslagen. Probeer het opnieuw.</p> : null}
       <div className="detail-toolbar">
         <Link className="button button-secondary" href="/dashboard/admin/clients"><ArrowLeft size={16} /> Alle klanten</Link>
-        <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/rfm`}><Gem size={16} /> Klantwaarde (RFM)</Link>
-        <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/voorspellingen`}><BrainCircuit size={16} /> Voorspellingen</Link>
-        <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/klantinzichten`}><Lightbulb size={16} /> Klantinzichten</Link>
+        <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/inzicht`}><Gem size={16} /> Inzicht</Link>
+        <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/voorspellen`}><BrainCircuit size={16} /> Voorspellen en advies</Link>
         {tenant.users[0] ? <form action={sendLoginLinkAction}><input name="tenantId" type="hidden" value={tenant.id} /><input name="returnTo" type="hidden" value={`/dashboard/admin/clients/${tenant.id}`} /><button className="button button-secondary" type="submit"><KeyRound size={16} /> Inloglink mailen</button></form> : null}
         {tenant.users[0] && tenant.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-primary" type="submit"><Eye size={16} /> Bekijken als klant</button></form> : null}
       </div>
@@ -134,7 +133,8 @@ export default async function AdminClientDetail({ params, searchParams }: Client
           <input name="tenantId" type="hidden" value={tenant.id} />
           <label className="module-setting-option"><span><strong>Database- en selectiestatistieken</strong><small>Toon Copernica-profielaantallen en selectie-widgets op het klantdashboard.</small></span><input defaultChecked={dashboardModules.databaseStats} name="databaseStats" type="checkbox" /></label>
           <label className="module-setting-option"><span><strong>E-mailcampagnestatistieken</strong><small>Toon campagne-KPI’s en campagneoverzichten voor deze klant.</small></span><input defaultChecked={dashboardModules.campaignStats} name="campaignStats" type="checkbox" /></label>
-          <label className="module-setting-option"><span><strong>Klantinzichten</strong><small>Toon de pagina Klantinzichten met RFM-segmenten, koopintentie, categorieën en doelgroepen. <Link href={`/dashboard/admin/clients/${tenant.id}/klantinzichten`}>Voorbeeld bekijken</Link></small></span><input defaultChecked={dashboardModules.insights} name="insights" type="checkbox" /></label>
+          <label className="module-setting-option"><span><strong>Inzicht</strong><small>RFM-segmenten, klantwaarde, cohortanalyse en ontwikkeling. <Link href={`/dashboard/admin/clients/${tenant.id}/inzicht`}>Bekijken</Link></small></span><input defaultChecked={dashboardModules.insight} name="insight" type="checkbox" /></label>
+          <label className="module-setting-option"><span><strong>Voorspellen en advies</strong><small>Verwachte omzet en productgroepen, verwachte bestellingen en doelgroepen. <Link href={`/dashboard/admin/clients/${tenant.id}/voorspellen`}>Bekijken</Link></small></span><input defaultChecked={dashboardModules.forecast} name="forecast" type="checkbox" /></label>
           <button className="button button-primary" type="submit">Instellingen opslaan</button>
         </form>
       </section>

@@ -1,5 +1,6 @@
 import { buyerFeatureRows, buyerFeatures, favoriteCategories, HORIZON_DAYS, prospectFeatureRows, prospectFeatures, purchasedAfter, type PredictData, type ProfileFeatures } from "./features";
 import { auc, liftAt, predictLogistic, trainLogistic } from "./logistic";
+import { actualRevenue, dueProducts, forecastCustomers, MAX_FORECAST_DAYS, repurchaseIntervals } from "./forecast";
 import { backtestRecommendations, buildRecommender, profileHistory, recommend, recommendedCategories, type RecommendationBacktest } from "./recommend";
 
 const dayMs = 24 * 60 * 60 * 1000;
@@ -36,7 +37,27 @@ export type PredictionReport = {
   prospects: PropensityReport;
   recommendations: RecommendationBacktest & { verdict: Verdict; usable: boolean };
   scored: { buyers: number; prospects: number; bands: { group: "buyers" | "prospects"; band: IntentBand; profiles: number }[]; nextCategories: { category: string; profiles: number }[] };
+  /** Absent in reports from before the revenue forecast existed. */
+  forecast?: ForecastReport;
 };
+
+export type ForecastReport = {
+  available: boolean;
+  /** Existing customers, from the customer value models. */
+  existing: { customers: number; orders30: number; revenue30: number; orders90: number; revenue90: number } | null;
+  /** Prospects expected to place a first order, when the prospect model passed its backtest. */
+  newCustomers: { orders30: number; revenue30: number } | null;
+  /** The forecast made 30 days ago for existing customers, against what they actually spent since. */
+  backtest: { predicted: number; actual: number } | null;
+  categories: { category: string; orders: number; revenue: number }[];
+  products: { productId: string; name: string; category: string | null; orders: number }[];
+  /** Profiles with a predicted order in the next 30 and 90 days. */
+  profilesWithOrder30: number;
+  profilesWithOrder90: number;
+  repeatProducts: number;
+};
+
+export type PredictedOrder = { productId: string | null; productName: string | null; category: string | null; date: string; source: "herhaalaankoop" | "aanbeveling" | "categorie" };
 
 export type ProfilePredictionResult = {
   profileId: string;
@@ -50,6 +71,13 @@ export type ProfilePredictionResult = {
   recommendationNames: string[];
   recommendationCategories: (string | null)[];
   lastVisitAt: Date | null;
+  /** Chance of an order in the next 30 days: the propensity model when it passed, else the customer value model (buyers). */
+  orderChance: number | null;
+  nextOrderAt: Date | null;
+  expectedRevenue30: number | null;
+  expectedRevenue90: number | null;
+  /** Up to three expected orders: products due for a repeat purchase first, then recommendations, else a category. */
+  predictedOrders: PredictedOrder[];
 };
 
 export function verdictFor(aucValue: number, lift: number): Verdict {
@@ -133,25 +161,92 @@ export function buildPredictions(data: PredictData, now: Date): { report: Predic
   const lastVisit = new Map<string, number>();
   for (const event of data.events) if (event.date.getTime() <= now.getTime()) lastVisit.set(event.profileId, Math.max(lastVisit.get(event.profileId) ?? 0, event.date.getTime()));
 
+  // Revenue forecast for existing customers, and how the same forecast 30 days ago turned out.
+  const forecast = forecastCustomers(data.orders, now);
+  const earlier = forecastCustomers(data.orders, test);
+  const backtest = earlier ? { predicted: earlier.totals.revenue30, actual: actualRevenue(data.orders, new Set(earlier.perProfile.keys()), test) } : null;
+  const due = dueProducts(data.lines, repurchaseIntervals(data.lines, now), now);
+  const newCustomerValue = firstOrderValue(data, now);
+  const day = (time: number) => new Date(Math.floor(time / dayMs) * dayMs);
+
   const predictions = [
     ...buyerRows.map((row) => ({ row, isBuyer: true, group: buyerScores })),
     ...prospectRows.map((row) => ({ row, isBuyer: false, group: prospectScores })),
   ].map(({ row, isBuyer, group }): ProfilePredictionResult => {
     const probability = group.scores.get(row.profileId) ?? null;
     const products = recommendationUsable ? recommend(recommender, owned.get(row.profileId) ?? new Set(), viewed.get(row.profileId) ?? new Map()) : [];
+    const customer = isBuyer ? forecast?.perProfile.get(row.profileId) : undefined;
+    const orderChance = probability ?? (customer ? 1 - Math.exp(-customer.expected30) : null);
+    const visit = lastVisit.get(row.profileId);
+    // The expected date follows from the same chance that is shown: an 81% chance within 30 days means about
+    // 12 days (median waiting time at that rate). Beyond 90 days it is too uncertain to call an order.
+    const waitDays = orderChance !== null && orderChance > 0 ? (Math.LN2 * HORIZON_DAYS) / -Math.log(1 - Math.min(orderChance, 0.999)) : Infinity;
+    const nextOrderAt = waitDays <= MAX_FORECAST_DAYS ? day(now.getTime() + Math.max(1, Math.round(waitDays)) * dayMs) : null;
+    const nextCategory = recommendationUsable ? recommendedCategories(recommender, products)[0] ?? null : null;
+    const predictedOrders: PredictedOrder[] = [];
+    for (const item of due.get(row.profileId) ?? []) predictedOrders.push({ productId: item.productId, productName: recommender.name.get(item.productId) ?? item.productId, category: recommender.category.get(item.productId) ?? null, date: day(Math.max(item.due.getTime(), now.getTime() + dayMs)).toISOString(), source: "herhaalaankoop" });
+    if (nextOrderAt) {
+      for (const product of products) if (!predictedOrders.some((order) => order.productId === product)) predictedOrders.push({ productId: product, productName: recommender.name.get(product) ?? product, category: recommender.category.get(product) ?? null, date: nextOrderAt.toISOString(), source: "aanbeveling" });
+      const category = nextCategory ?? favorites.get(row.profileId) ?? null;
+      if (!predictedOrders.length && category) predictedOrders.push({ productId: null, productName: null, category, date: nextOrderAt.toISOString(), source: "categorie" });
+    }
     return {
       profileId: row.profileId,
       isBuyer,
       probability,
       band: probability !== null && group.thresholds ? bandFor(probability, group.thresholds) : null,
       favoriteCategory: favorites.get(row.profileId) ?? null,
-      nextCategory: recommendationUsable ? recommendedCategories(recommender, products)[0] ?? null : null,
+      nextCategory,
       recommendations: products,
       recommendationNames: products.map((product) => recommender.name.get(product) ?? product),
       recommendationCategories: products.map((product) => recommender.category.get(product) ?? null),
-      lastVisitAt: lastVisit.has(row.profileId) ? new Date(lastVisit.get(row.profileId)!) : null,
+      lastVisitAt: visit ? new Date(visit) : null,
+      orderChance,
+      nextOrderAt,
+      expectedRevenue30: customer ? customer.expected30 * customer.orderValue : probability !== null ? probability * newCustomerValue : null,
+      expectedRevenue90: customer ? customer.expected90 * customer.orderValue : null,
+      predictedOrders: predictedOrders.slice(0, 3),
     };
   });
+
+  // Expected orders and revenue per product group and product in the next 30 days.
+  const categories = new Map<string, { orders: number; revenue: number }>();
+  const productTotals = new Map<string, { name: string; category: string | null; orders: number }>();
+  for (const prediction of predictions) {
+    if (!prediction.orderChance) continue;
+    const first = prediction.predictedOrders[0];
+    const category = first?.category ?? prediction.nextCategory ?? prediction.favoriteCategory;
+    const value = prediction.isBuyer ? forecast?.perProfile.get(prediction.profileId)?.orderValue ?? forecast?.orderValue ?? 0 : newCustomerValue;
+    if (category) {
+      const entry = categories.get(category) ?? { orders: 0, revenue: 0 };
+      categories.set(category, { orders: entry.orders + prediction.orderChance, revenue: entry.revenue + prediction.orderChance * value });
+    }
+    if (first?.productId) {
+      const entry = productTotals.get(first.productId) ?? { name: first.productName ?? first.productId, category: first.category, orders: 0 };
+      productTotals.set(first.productId, { ...entry, orders: entry.orders + prediction.orderChance });
+    }
+  }
+  const prospectsUsable = prospects.report.status === "ok" && prospects.report.usable;
+  const newCustomers = prospectsUsable ? predictions.filter((prediction) => !prediction.isBuyer && prediction.probability !== null).reduce((total, prediction) => ({ orders30: total.orders30 + prediction.probability!, revenue30: total.revenue30 + prediction.probability! * newCustomerValue }), { orders30: 0, revenue30: 0 }) : null;
+  // The purchase chances decide how orders spread over product groups and products; the totals come from
+  // the revenue forecast, so the groups always add up to the headline figures.
+  const totalOrders = (forecast?.totals.orders30 ?? 0) + (newCustomers?.orders30 ?? 0);
+  const totalRevenue = (forecast?.totals.revenue30 ?? 0) + (newCustomers?.revenue30 ?? 0);
+  const rawOrders = [...categories.values()].reduce((sum, entry) => sum + entry.orders, 0);
+  const rawRevenue = [...categories.values()].reduce((sum, entry) => sum + entry.revenue, 0);
+  const orderScale = rawOrders ? totalOrders / rawOrders : 0;
+  const revenueScale = rawRevenue ? totalRevenue / rawRevenue : 0;
+  const forecastReport: ForecastReport = {
+    available: forecast !== null,
+    existing: forecast ? forecast.totals : null,
+    newCustomers,
+    backtest,
+    categories: [...categories].map(([category, entry]) => ({ category, orders: entry.orders * orderScale, revenue: entry.revenue * revenueScale })).sort((left, right) => right.revenue - left.revenue).slice(0, 10),
+    products: [...productTotals].map(([productId, entry]) => ({ productId, ...entry, orders: entry.orders * orderScale })).sort((left, right) => right.orders - left.orders).slice(0, 10),
+    profilesWithOrder30: predictions.filter((prediction) => prediction.predictedOrders.some((order) => new Date(order.date).getTime() <= now.getTime() + 30 * dayMs)).length,
+    profilesWithOrder90: predictions.filter((prediction) => prediction.predictedOrders.length > 0).length,
+    repeatProducts: repurchaseIntervals(data.lines, now).size,
+  };
 
   const count = <T,>(items: T[], key: (item: T) => string | null) => {
     const map = new Map<string, number>();
@@ -187,6 +282,7 @@ export function buildPredictions(data: PredictData, now: Date): { report: Predic
         bands: [...bandCounts("buyers"), ...bandCounts("prospects")],
         nextCategories: [...count(predictions, (prediction) => prediction.nextCategory)].sort((left, right) => right[1] - left[1]).slice(0, 8).map(([category, profiles]) => ({ category, profiles })),
       },
+      forecast: forecastReport,
     },
   };
 }
@@ -195,4 +291,15 @@ export function buildPredictions(data: PredictData, now: Date): { report: Predic
 export function isWriteBackAllowed(report: Pick<PredictionReport, "buyers" | "prospects" | "recommendations">) {
   const passed = (part: PropensityReport) => part.status === "ok" && part.usable;
   return passed(report.buyers) || passed(report.prospects) || report.recommendations.usable;
+}
+
+/** What the first order of recently converted customers is worth (median), to value expected new customers. */
+function firstOrderValue(data: PredictData, now: Date) {
+  const first = new Map<string, { time: number; amount: number }>();
+  for (const order of data.orders) {
+    const current = first.get(order.profileId);
+    if (!current || order.date.getTime() < current.time) first.set(order.profileId, { time: order.date.getTime(), amount: Math.max(0, order.amount) });
+  }
+  const values = [...first.values()].filter((order) => order.time >= now.getTime() - 120 * dayMs).map((order) => order.amount).sort((left, right) => left - right);
+  return values.length ? values[Math.floor(values.length / 2)] : 0;
 }

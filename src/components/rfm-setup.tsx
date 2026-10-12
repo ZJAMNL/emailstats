@@ -125,7 +125,7 @@ export function RfmSetup({ tenantId, initial }: { tenantId: string; initial: Rfm
 
         <li className={ready ? undefined : "is-disabled"}>
           <h3>4. Controleren en activeren</h3>
-          <label className="rfm-check"><input checked={settings.customerVisible} onChange={(event) => update({ customerVisible: event.target.checked })} type="checkbox" /> Ook tonen op het dashboard van de klant</label>
+
           <div className="rfm-row">
             <button className="button button-secondary" disabled={!ready || busy !== null} onClick={() => run("preview", () => rfmPreviewAction(tenantId, settings), setPreview)} type="button"><Calculator size={15} /> {busy === "preview" ? "Berekenen… (kan even duren)" : "Proefberekening"}</button>
             <button className="button button-primary" disabled={!ready || busy !== null} onClick={() => run("save", () => rfmSaveAction(tenantId, settings), () => setSaved(true))} type="button"><Save size={15} /> {busy === "save" ? "Opslaan en berekenen…" : "Opslaan en berekenen"}</button>

@@ -434,7 +434,8 @@ function readDashboardModules(formData: FormData) {
   return {
     databaseStats: formData.get("databaseStats") === "on",
     campaignStats: formData.get("campaignStats") === "on",
-    insights: formData.get("insights") === "on",
+    insight: formData.get("insight") === "on",
+    forecast: formData.get("forecast") === "on",
   };
 }
 

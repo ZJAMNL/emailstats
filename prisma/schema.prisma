@@ -264,30 +264,43 @@ model AlertEvent {
 
 /// Predictive models on order lines and web tracking. Needs the orders mapping of RfmConfig.
 model PredictionConfig {
-  tenantId           String    @id
-  lineCollectionId   String
-  lineCollectionName String
+  tenantId               String    @id
+  lineCollectionId       String
+  lineCollectionName     String
   /// Field on the order line that points to the order; matched against orderKeyField (empty = order subprofile id).
-  lineOrderField     String
-  orderKeyField      String    @default("")
-  lineProductField   String
-  lineNameField      String?
-  lineCategoryField  String?
-  webCollectionId    String?
-  webCollectionName  String?
-  webDateField       String?
-  webProductField    String?
-  webCategoryField   String?
-  webEventField      String?
-  enabled            Boolean   @default(false)
-  writeBackEnabled   Boolean   @default(false)
-  lastRunAt          DateTime?
-  lastRunStatus      String?
+  lineOrderField         String
+  orderKeyField          String    @default("")
+  lineProductField       String
+  lineNameField          String?
+  lineCategoryField      String?
+  webCollectionId        String?
+  webCollectionName      String?
+  webDateField           String?
+  webProductField        String?
+  webCategoryField       String?
+  webEventField          String?
+  /// Copernica collection for the expected orders, and which of its fields get what.
+  forecastCollectionId   String?
+  forecastCollectionName String?
+  forecastDateField      String?
+  forecastSkuField       String?
+  forecastNameField      String?
+  forecastCategoryField  String?
+  forecastChanceField    String?
+  /// Expected orders per profile (1–3) and which profiles: "top10", "top40" or "all".
+  forecastRecords        Int       @default(1)
+  forecastScope          String    @default("top40")
+  forecastWriteAt        DateTime?
+  forecastWriteSummary   Json?
+  enabled                Boolean   @default(false)
+  writeBackEnabled       Boolean   @default(false)
+  lastRunAt              DateTime?
+  lastRunStatus          String?
   /// The backtest report (src/lib/predict/model.ts PredictionReport).
-  lastRunSummary     Json?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lastRunSummary         Json?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model ProfilePrediction {
@@ -302,6 +315,13 @@ model ProfilePrediction {
   recommendations          String[]  @default([])
   recommendationNames      String[]  @default([])
   recommendationCategories String[]  @default([])
+  /// Chance of an order in the next 30 days (propensity model, else customer value model).
+  orderChance              Float?
+  nextOrderAt              DateTime?
+  expectedRevenue30        Float?
+  expectedRevenue90        Float?
+  /// Up to three expected orders: [{ productId, productName, category, date, source }].
+  predictedOrders          Json      @default("[]")
   lastVisitAt              DateTime?
   updatedAt                DateTime  @updatedAt
   tenant                   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)

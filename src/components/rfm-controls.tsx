@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { Power, RefreshCw } from "lucide-react";
-import { rfmDisableAction, rfmRunAction, rfmVisibilityAction } from "@/app/rfm-actions";
+import { rfmDisableAction, rfmRunAction } from "@/app/rfm-actions";
 
-export function RfmControls({ tenantId, customerVisible }: { tenantId: string; customerVisible: boolean }) {
+/** Recalculate or switch off the RFM model. Whether the customer sees it is set per customer (Inzicht). */
+export function RfmControls({ tenantId }: { tenantId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDisable, setConfirmDisable] = useState(false);
@@ -22,7 +23,6 @@ export function RfmControls({ tenantId, customerVisible }: { tenantId: string; c
 
   return (
     <div className="rfm-controls">
-      <label className="rfm-check"><input checked={customerVisible} disabled={busy !== null} onChange={(event) => run("visibility", () => rfmVisibilityAction(tenantId, event.target.checked))} type="checkbox" /> Zichtbaar voor de klant</label>
       <button className="button button-secondary" disabled={busy !== null} onClick={() => run("run", () => rfmRunAction(tenantId))} type="button"><RefreshCw size={15} /> {busy === "run" ? "Berekenen…" : "Nu berekenen"}</button>
       {confirmDisable
         ? <span className="rfm-confirm">Scores per profiel worden verwijderd. <button className="button button-danger" disabled={busy !== null} onClick={() => run("disable", () => rfmDisableAction(tenantId))} type="button">Ja, uitzetten</button><button className="button button-secondary" onClick={() => setConfirmDisable(false)} type="button">Annuleren</button></span>

@@ -71,6 +71,11 @@ export async function runPredictions(tenantId: string) {
       recommendations: prediction.recommendations,
       recommendationNames: prediction.recommendationNames,
       recommendationCategories: prediction.recommendationCategories.map((category) => category ?? ""),
+      orderChance: prediction.orderChance,
+      nextOrderAt: prediction.nextOrderAt,
+      expectedRevenue30: prediction.expectedRevenue30,
+      expectedRevenue90: prediction.expectedRevenue90,
+      predictedOrders: prediction.predictedOrders,
       lastVisitAt: prediction.lastVisitAt,
     }));
     await prisma.$transaction(async (transaction) => {

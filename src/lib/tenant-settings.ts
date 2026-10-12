@@ -3,14 +3,17 @@ import { getPrismaClient } from "./prisma";
 export type TenantDashboardModules = {
   databaseStats: boolean;
   campaignStats: boolean;
-  /** The Klantinzichten page (RFM and predictions) in the customer's environment. */
-  insights: boolean;
+  /** "Inzicht": RFM segments, customer value, cohorts and development, in the customer's environment. */
+  insight: boolean;
+  /** "Voorspellen en advies": revenue and product forecast with advice, in the customer's environment. */
+  forecast: boolean;
 };
 
 const defaultModules: TenantDashboardModules = {
   databaseStats: true,
   campaignStats: true,
-  insights: false,
+  insight: false,
+  forecast: false,
 };
 
 export async function getTenantDashboardModules(tenantId: string): Promise<TenantDashboardModules> {
@@ -25,7 +28,8 @@ export function readTenantDashboardModules(value: unknown): TenantDashboardModul
   return {
     databaseStats: typeof savedModules.databaseStats === "boolean" ? savedModules.databaseStats : defaultModules.databaseStats,
     campaignStats: typeof savedModules.campaignStats === "boolean" ? savedModules.campaignStats : defaultModules.campaignStats,
-    insights: typeof savedModules.insights === "boolean" ? savedModules.insights : defaultModules.insights,
+    insight: typeof savedModules.insight === "boolean" ? savedModules.insight : defaultModules.insight,
+    forecast: typeof savedModules.forecast === "boolean" ? savedModules.forecast : defaultModules.forecast,
   };
 }
 

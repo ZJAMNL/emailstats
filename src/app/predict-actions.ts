@@ -2,6 +2,9 @@
 
 import { refresh } from "next/cache";
 import { adminForTenant } from "@/lib/admin-access";
+import { CopernicaError } from "@/lib/copernica";
+import { forecastScopes } from "@/lib/predict/orders-plan";
+import { createForecastCollection, writeForecastOrders, type ForecastWriteSummary } from "@/lib/predict/orders-writer";
 import { getPrismaClient } from "@/lib/prisma";
 import { runPredictions } from "@/lib/predict/run";
 
@@ -92,4 +95,57 @@ export async function predictionWriteBackSettingAction(tenantId: string, enabled
   await getPrismaClient().predictionConfig.update({ where: { tenantId }, data: { writeBackEnabled: enabled === true } });
   refresh();
   return { ok: true, data: null };
+}
+
+// ---------------------------------------------------------------- expected orders → Copernica
+
+export type ForecastMappingInput = { collectionId: string; collectionName: string; dateField: string; skuField: string; nameField: string; categoryField: string; chanceField: string; records: number; scope: string };
+
+/** Creates the suggested collection Verwachte_bestellingen (or completes it) and maps its fields. */
+export async function createForecastCollectionAction(tenantId: string): Promise<Result<ForecastMappingInput>> {
+  if (!(await adminForTenant(tenantId))) return noAccess;
+  try {
+    const mapping = await createForecastCollection(tenantId);
+    const prisma = getPrismaClient();
+    const current = await prisma.predictionConfig.findUnique({ where: { tenantId }, select: { forecastRecords: true, forecastScope: true } });
+    if (!current) return { ok: false, error: "Stel eerst de voorspellingen in." };
+    await prisma.predictionConfig.update({ where: { tenantId }, data: { forecastCollectionId: mapping.collectionId, forecastCollectionName: mapping.collectionName, forecastDateField: mapping.dateField, forecastSkuField: mapping.skuField, forecastNameField: mapping.nameField, forecastCategoryField: mapping.categoryField, forecastChanceField: mapping.chanceField } });
+    refresh();
+    return { ok: true, data: { ...mapping, records: current.forecastRecords, scope: current.forecastScope } };
+  } catch (error) {
+    if (error instanceof CopernicaError && (error.status === 401 || error.status === 403)) return { ok: false, error: "Copernica weigert het aanmaken: het API-token van deze klant heeft geen schrijfrechten." };
+    return { ok: false, error: "De collectie kon niet worden aangemaakt. Controleer de Copernica-koppeling." };
+  }
+}
+
+export async function saveForecastMappingAction(tenantId: string, input: ForecastMappingInput): Promise<Result<null>> {
+  if (!(await adminForTenant(tenantId))) return noAccess;
+  const text = (value: unknown, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+  const collectionId = text(input?.collectionId, 40);
+  const dateField = text(input?.dateField);
+  const skuField = text(input?.skuField);
+  if (!collectionId || !dateField || !skuField) return { ok: false, error: "Kies een collectie en de velden voor datum en SKU." };
+  const optional = (value: unknown) => text(value) || null;
+  const fields = [dateField, skuField, optional(input.nameField), optional(input.categoryField), optional(input.chanceField)].filter(Boolean);
+  if (new Set(fields).size !== fields.length) return { ok: false, error: "Gebruik elk veld maar één keer." };
+  const records = Math.min(3, Math.max(1, Math.round(Number(input.records) || 1)));
+  const scope = input.scope in forecastScopes ? input.scope : "top40";
+  await getPrismaClient().predictionConfig.update({
+    where: { tenantId },
+    data: { forecastCollectionId: collectionId, forecastCollectionName: text(input.collectionName), forecastDateField: dateField, forecastSkuField: skuField, forecastNameField: optional(input.nameField), forecastCategoryField: optional(input.categoryField), forecastChanceField: optional(input.chanceField), forecastRecords: records, forecastScope: scope },
+  });
+  refresh();
+  return { ok: true, data: null };
+}
+
+export async function writeForecastNowAction(tenantId: string): Promise<Result<ForecastWriteSummary>> {
+  if (!(await adminForTenant(tenantId))) return noAccess;
+  try {
+    // Leave headroom under the page's 300-second limit; the rest follows on the next run.
+    const summary = await writeForecastOrders(tenantId, Date.now() + 240_000);
+    refresh();
+    return summary.error ? { ok: false, error: summary.error } : { ok: true, data: summary };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error && error.message ? error.message : "Wegschrijven is mislukt. Controleer de Copernica-koppeling." };
+  }
 }

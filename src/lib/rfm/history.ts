@@ -14,10 +14,6 @@ export async function loadRfmResult(tenantId: string) {
   return { config, summary };
 }
 
-export async function isRfmVisibleToCustomer(tenantId: string) {
-  const config = await getPrismaClient().rfmConfig.findUnique({ where: { tenantId }, select: { enabled: true, customerVisible: true, lastRunSummary: true } });
-  return Boolean(config?.enabled && config.customerVisible && config.lastRunSummary);
-}
 
 export function loadRfmSnapshots(tenantId: string) {
   const since = new Date(Date.now() - 400 * dayMs);
