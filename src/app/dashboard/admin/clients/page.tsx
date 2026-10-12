@@ -1,7 +1,10 @@
 import { BellRing, BrainCircuit, Database, Eye, Gem, Mail, Search } from "lucide-react";
 import Image from "next/image";
+import { cookies } from "next/headers";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ClientEditDialog } from "@/components/client-edit-dialog";
+import { ClientsView } from "@/components/clients-view";
+import { CLIENTS_LAYOUT_COOKIE, readClientsLayout } from "@/lib/clients-layout";
 import { CreateCustomerDialog } from "@/components/create-customer-dialog";
 import { impersonateCustomerAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
@@ -40,6 +43,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
   const params = await searchParams;
   const search = params.q?.trim() ?? "";
   const ownerFilter = isSuperAdmin ? params.beheerder ?? "" : "";
+  const layout = readClientsLayout((await cookies()).get(CLIENTS_LAYOUT_COOKIE)?.value);
   let clients: Awaited<ReturnType<typeof loadClients>> = [];
   let owners: Awaited<ReturnType<typeof loadOwners>> = [];
   let databaseUnavailable = false;
@@ -60,17 +64,14 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
       {params.error && errorText[params.error] ? <p className="form-error" role="alert">{errorText[params.error]}</p> : null}
       {databaseUnavailable ? <p className="form-error" role="status">Klantbeheer is nog niet beschikbaar: configureer en migreer eerst de PostgreSQL-database (`DATABASE_URL`).</p> : null}
 
-      <section className="toolbar">
+      <ClientsView initialLayout={layout} search={
         <form className="search-box" action="/dashboard/admin/clients" role="search">
           <Search size={16} />
           <input aria-label="Zoek klant" name="q" placeholder="Zoek klant" defaultValue={search} />
           {isSuperAdmin ? <select aria-label="Filter op beheerder" className="owner-filter" name="beheerder" defaultValue={ownerFilter}><option value="">Alle beheerders</option><option value="geen">Niet toegewezen</option>{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</select> : null}
           <button className="button button-secondary" type="submit">Zoeken</button>
         </form>
-        <CreateCustomerDialog owners={isSuperAdmin ? owners.map(({ id, name }) => ({ id, name })) : null} defaultOwnerId={session.userId} />
-      </section>
-
-      <section className="client-grid" aria-label="Klanten">
+      } actions={<CreateCustomerDialog owners={isSuperAdmin ? owners.map(({ id, name }) => ({ id, name })) : null} defaultOwnerId={session.userId} />}>
         {clients.map((client) => {
           const modules = readTenantDashboardModules(client.settings);
           const showProfiles = modules.databaseStats && client.selections.length > 0;
@@ -90,11 +91,13 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
                 {isSuperAdmin ? <span className={`client-owner-chip${client.owner ? "" : " is-unassigned"}`} title="Beheerder">{client.owner?.name ?? "Niet toegewezen"}</span> : null}
                 <span className={`selection-widget-dot${client.status === "active" ? "" : " is-inactive"}`} aria-label={client.status === "active" ? "Actief" : "Inactief"} />
               </div>
+              <div className="client-widget-metrics">
               <strong className="selection-widget-value">{(showProfiles ? profileTotal : client._count.campaigns).toLocaleString("nl-NL")}</strong>
               <p className="client-widget-metric">{showProfiles ? profileLabel : "campagnes gesynchroniseerd"}</p>
               {showProfiles ? profileDelta === null
                 ? <p className="selection-widget-delta selection-widget-delta-empty">Nog geen meting van gisteren</p>
                 : <p className={`selection-widget-delta ${profileDelta < 0 ? "trend-down" : profileDelta > 0 ? "trend-up" : "trend-flat"}`}>{profileDelta > 0 ? "+" : ""}{profileDelta.toLocaleString("nl-NL")} sinds gisteren</p> : null}
+              </div>
               <div className="module-chips" aria-label="Actieve widgets"><span className={`module-chip${modules.databaseStats ? "" : " is-off"}`}><Database size={13} /> Database</span><span className={`module-chip${modules.campaignStats ? "" : " is-off"}`}><Mail size={13} /> E-mail</span><span className={`module-chip${modules.insight ? "" : " is-off"}`}><Gem size={13} /> Inzicht</span><span className={`module-chip${modules.forecast ? "" : " is-off"}`}><BrainCircuit size={13} /> Voorspellen</span><span className={`module-chip${client.alertSettings?.enabled ? "" : " is-off"}`}><BellRing size={13} /> Alerts</span>{client.users[0] && client.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={client.id} /><button aria-label={`Inloggen als ${client.name}`} className="icon-button client-widget-login" title={`Inloggen als ${client.name}`} type="submit"><Eye size={16} /></button></form> : null}</div>
               <div className="client-widget-footer">
                 <small className="selection-widget-date">{client.copernica ? lastSync ? `Laatste sync ${lastSync.toLocaleDateString("nl-NL")}` : "Nog niet gesynchroniseerd" : "Geen Copernica-koppeling"}</small>
@@ -115,7 +118,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
           );
         })}
         {!databaseUnavailable && clients.length === 0 ? <p>{search ? "Geen klanten gevonden." : "Er zijn nog geen klanten aangemaakt."}</p> : null}
-      </section>
+      </ClientsView>
     </DashboardShell>
   );
 }
