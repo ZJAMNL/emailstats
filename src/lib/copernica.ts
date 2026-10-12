@@ -199,6 +199,24 @@ export async function getTenantCopernica(tenantId: string) {
   };
 }
 
+async function storeSelections(tenantId: string, views: CopernicaView[]) {
+  const prisma = getPrismaClient();
+  const known = new Set((await prisma.copernicaSelection.findMany({ where: { tenantId }, select: { copernicaId: true } })).map((selection) => selection.copernicaId));
+  await mapInBatches(views, 8, (view) => prisma.copernicaSelection.upsert({
+    where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } },
+    create: { tenantId, copernicaId: String(view.ID), name: view.name },
+    update: { name: view.name },
+  }));
+  return { total: views.length, added: views.filter((view) => !known.has(String(view.ID))).length };
+}
+
+/** Fetches the Copernica views again, so new selections can be chosen without a full sync. */
+export async function refreshTenantSelections(tenantId: string) {
+  const connected = await getTenantCopernica(tenantId);
+  if (!connected) throw new Error("Deze klant heeft nog geen Copernica-koppeling.");
+  return storeSelections(tenantId, await listCopernicaViewsWithJwt(connected.jwt, connected.connection.databaseId));
+}
+
 export async function syncTenantCopernicaData(
   tenantId: string,
   range?: { from?: string; to?: string },
@@ -217,12 +235,7 @@ export async function syncTenantCopernicaData(
   let campaignCount = 0;
 
   if (modules.databaseStats) {
-    const views = await listCopernicaViewsWithJwt(jwt, connection.databaseId);
-    await Promise.all(views.map((view) => prisma.copernicaSelection.upsert({
-      where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } },
-      create: { tenantId, copernicaId: String(view.ID), name: view.name },
-      update: { name: view.name },
-    })));
+    await storeSelections(tenantId, await listCopernicaViewsWithJwt(jwt, connection.databaseId));
 
     const enabledSelections = await prisma.copernicaSelection.findMany({ where: { tenantId, enabled: true } });
     selectionCount = enabledSelections.length;

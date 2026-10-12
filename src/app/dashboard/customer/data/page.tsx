@@ -6,6 +6,7 @@ import { connectCopernicaAction, syncCopernicaNowAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { ALL_SCOPE, requireTenantManager } from "@/lib/webshops";
+import { RefreshSelectionsButton } from "@/components/refresh-selections-button";
 import { SelectionPicker } from "@/components/selection-picker";
 import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
@@ -91,8 +92,8 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
       {connection && !databaseStatsEnabled ? <section className="panel table-panel"><p className="empty-state">De beheerder heeft database- en selectiestatistieken voor dit klantaccount uitgeschakeld.</p></section> : null}
       {connection && databaseStatsEnabled ? <>
         <section className="panel table-panel">
-          <div className="panel-heading"><div><p className="eyebrow">Databaseselecties</p><h2>Kies selecties om te volgen</h2></div><span className="tab">{enabledSelections.length} gekozen</span></div>
-          {selections.length === 0 ? <p className="empty-state">Nog geen Copernica-views gevonden. Werk de verbinding bij om de selecties op te halen.</p> : <SelectionPicker options={selections.map((selection) => ({
+          <div className="panel-heading"><div><p className="eyebrow">Databaseselecties</p><h2>Kies selecties om te volgen</h2></div><div className="panel-heading-actions"><span className="tab">{enabledSelections.length} gekozen</span><RefreshSelectionsButton /></div></div>
+          {selections.length === 0 ? <p className="empty-state">Nog geen Copernica-selecties gevonden. Klik op ‘Opnieuw ophalen’ om ze op te halen.</p> : <SelectionPicker options={selections.map((selection) => ({
             id: selection.id,
             copernicaId: selection.copernicaId,
             name: selection.name,

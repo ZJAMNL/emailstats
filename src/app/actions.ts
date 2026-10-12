@@ -6,7 +6,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
 import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
-import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, syncTenantCopernicaData } from "@/lib/copernica";
+import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, refreshTenantSelections, syncTenantCopernicaData } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { adminForTenant, requireAdmin, type AdminSession } from "@/lib/admin-access";
 import { createSession, requireRole, requireSession } from "@/lib/session";
@@ -350,6 +350,18 @@ export async function updateCopernicaSelectionsAction(formData: FormData) {
   }
 
   redirect("/dashboard/customer/data?notice=selections-saved");
+}
+
+export async function refreshSelectionsAction(): Promise<{ ok: true; total: number; added: number } | { ok: false; error: string }> {
+  const session = await requireRole("customer");
+  if (!(await requireTenantManager(session))) return { ok: false, error: "Je hebt geen rechten om de selecties te beheren." };
+  try {
+    const result = await refreshTenantSelections(session.tenantId);
+    refresh();
+    return { ok: true, ...result };
+  } catch {
+    return { ok: false, error: "Ophalen is niet gelukt. Controleer de Copernica-koppeling en probeer opnieuw." };
+  }
 }
 
 export async function updateSelectionWidgetAction(formData: FormData) {

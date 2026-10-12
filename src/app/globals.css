@@ -531,6 +531,11 @@ td { color: #dfe9f5; }
 .customer-form > .button { justify-self: start; }
 .form-success { padding: .8rem 1rem; border: 1px solid rgba(76,201,167,.25); border-radius: 10px; background: rgba(76,201,167,.07); color: var(--accent); }
 .form-error[role="status"], .form-error[role="alert"] { padding: .8rem 1rem; border: 1px solid rgba(255,110,118,.24); border-radius: 10px; background: rgba(255,110,118,.06); }
+.refresh-selections { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; }
+.refresh-selections .form-success, .refresh-selections .form-error { padding: .4rem .7rem; font-size: .82rem; }
+.panel-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .75rem 1rem; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .button-danger { background: rgba(255,110,118,.1); border-color: rgba(255,110,118,.25); color: #ff9aa0; }
 .client-actions { margin-top: 1rem; padding-top: .85rem; border-top: 1px solid var(--border); }
 .client-actions summary { display: flex; align-items: center; gap: .45rem; color: var(--accent); font-size: .82rem; font-weight: 700; cursor: pointer; }
