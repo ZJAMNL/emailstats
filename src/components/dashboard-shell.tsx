@@ -30,12 +30,14 @@ export async function DashboardShell({
   const canManage = scopeInfo ? canManageTenant(scopeInfo.allowed) : true;
   const links = [
     { href: role === "admin" ? "/dashboard/admin" : "/dashboard/customer", label: "Overzicht", icon: LayoutDashboard },
-    { href: role === "admin" ? "/dashboard/admin/clients" : "/dashboard/customer/data", label: role === "admin" ? "Klanten" : "Beheer", icon: role === "admin" ? Users : Database },
+    ...(role === "admin" ? [{ href: "/dashboard/admin/clients", label: "Klanten", icon: Users }] : []),
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
     ...(role === "customer" && modules?.insight && canManage ? [{ href: "/dashboard/customer/inzicht", label: "Inzicht", icon: Gem }] : []),
     ...(role === "customer" && modules?.forecast && canManage ? [{ href: "/dashboard/customer/voorspellen", label: "Voorspellen en advies", icon: BrainCircuit }] : []),
     ...(adminRole === "superadmin" ? [{ href: "/dashboard/admin/beheerders", label: "Beheerders", icon: UserCog }] : []),
     ...(role === "customer" ? [{ href: "/dashboard/customer/uitleg", label: "Uitleg modellen", icon: BookOpen }] : []),
+    // Settings come last for customers, after everything they read.
+    ...(role === "customer" ? [{ href: "/dashboard/customer/data", label: "Beheer", icon: Database }] : []),
   ].filter((link) => (link.href !== "/dashboard/customer/campaigns" || modules?.campaignStats !== false) && (link.href !== "/dashboard/customer/data" || canManage));
 
   return (
