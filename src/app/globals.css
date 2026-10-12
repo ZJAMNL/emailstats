@@ -824,6 +824,18 @@ td { color: #dfe9f5; }
 .rfm-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .5rem; color: var(--muted); font-size: .82rem; }
 .rfm-check { display: inline-flex; align-items: center; gap: .5rem; font-size: .85rem; cursor: pointer; }
 .rfm-check input { width: 17px; height: 17px; accent-color: var(--accent); }
+.connection-panel > summary { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; list-style: none; cursor: pointer; }
+.connection-panel > summary::-webkit-details-marker { display: none; }
+.connection-panel > summary > div { flex: 1 1 auto; }
+.connection-panel > summary h2 { margin: 0; font-size: 1.15rem; }
+.connection-panel[open] > summary { margin-bottom: 1rem; }
+.connection-panel:not(:has(.connection-toggle)) > summary { cursor: default; pointer-events: none; }
+.connection-status { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .7rem; border: 1px solid rgba(76,201,167,.3); border-radius: 999px; background: rgba(76,201,167,.08); color: var(--accent); font-size: .8rem; font-weight: 700; }
+.connection-toggle { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted); font-size: .82rem; font-weight: 700; }
+.connection-panel > summary:hover .connection-toggle { color: var(--text); }
+.connection-toggle svg { transition: transform .15s ease; }
+.connection-panel[open] .connection-toggle svg { transform: rotate(180deg); }
+.connection-panel > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
 .rfm-settings summary { color: var(--accent); font-weight: 700; cursor: pointer; }
 .rfm-settings[open] summary { margin-bottom: 1rem; }
 .rfm-setup { display: grid; gap: 1rem; }

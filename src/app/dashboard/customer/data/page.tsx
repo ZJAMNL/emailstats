@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Database, Mail, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronDown, Database, Mail, RefreshCw, ShieldCheck } from "lucide-react";
 import { CustomerDataTabs } from "@/components/customer-data-tabs";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { connectCopernicaAction, syncCopernicaNowAction } from "@/app/actions";
@@ -80,14 +80,19 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
         <article className="panel info-panel"><div className="icon-box"><ShieldCheck size={20} /></div><div><p className="eyebrow">Toegang</p><h2>Alleen jouw tenant</h2><p>Je kunt uitsluitend je eigen Copernica-verbinding, selecties en meetreeksen bekijken.</p></div></article>
       </section>
 
-      <section className="panel form-panel">
-        <div className="panel-heading"><div><p className="eyebrow">Verbinding</p><h2>{connection ? "Copernica-instellingen" : "Koppel Copernica"}</h2></div></div>
+      {/* A saved connection was tested when it was stored, so it stays folded away until it needs changing. */}
+      <details className="panel form-panel connection-panel" open={!connection || params.error === "invalid-connection" || params.error === "connection-failed"}>
+        <summary>
+          <div><p className="eyebrow">Verbinding</p><h2>{connection ? "Copernica-instellingen" : "Koppel Copernica"}</h2></div>
+          {connection ? <span className="connection-status"><CheckCircle2 size={16} /> API-connectie actief · database {connection.databaseId}</span> : null}
+          {connection ? <span className="connection-toggle">Aanpassen <ChevronDown size={15} /></span> : null}
+        </summary>
         <form action={connectCopernicaAction} className="customer-form">
           <label>Copernica-database-ID<input name="databaseId" inputMode="numeric" defaultValue={connection?.databaseId ?? ""} required /></label>
           <label>Copernica API-token<input name="apiToken" type="password" autoComplete="new-password" required={!connection} /><small>{connection ? "Laat leeg om je huidige token te behouden; vul alleen een nieuwe token in om die te vervangen." : "Maak een API-v4 token aan in Copernica. De token wordt nooit in je browser teruggetoond."}</small></label>
           <button className="button button-primary" type="submit">{connection ? "Verbinding bijwerken" : "Verbinding testen en opslaan"}</button>
         </form>
-      </section>
+      </details>
 
       {connection && !databaseStatsEnabled ? <section className="panel table-panel"><p className="empty-state">De beheerder heeft database- en selectiestatistieken voor dit klantaccount uitgeschakeld.</p></section> : null}
       {connection && databaseStatsEnabled ? <>
