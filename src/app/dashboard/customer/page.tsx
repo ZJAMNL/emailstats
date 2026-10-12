@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CalendarDays } from "lucide-react";
 import { cookies } from "next/headers";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
@@ -24,22 +25,28 @@ const comparePeriods = {
 } as const;
 type ComparePeriod = keyof typeof comparePeriods;
 const chartRanges = {
+  "1w": { label: "1 week", days: 7 },
+  "1m": { label: "1 maand", days: 31 },
   "3m": { label: "3 maanden", days: 91 },
   "1j": { label: "1 jaar", days: 366 },
   alles: { label: "Alles", days: null },
 } as const;
 type ChartRange = keyof typeof chartRanges;
+/** A period between two dates, chosen with the date picker next to the fixed ranges. */
+type CustomRange = { from: string; to: string };
 const defaultChartRange: ChartRange = "1j";
 const dayMs = 24 * 60 * 60 * 1000;
 const chartColors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", "#4c7878", "#a8456b", "#5f7a2e"];
 
 type CustomerDashboardProps = {
-  searchParams: Promise<{ vergelijk?: string; bereik?: string }>;
+  searchParams: Promise<{ vergelijk?: string; bereik?: string; van?: string; tot?: string }>;
 };
 
 export default async function CustomerDashboard({ searchParams }: CustomerDashboardProps) {
   const session = await requireRole("customer");
-  const { vergelijk, bereik } = await searchParams;
+  const { vergelijk, bereik, van, tot } = await searchParams;
+  const customRange = readCustomRange(van, tot);
+  const pickerRange = rangePickerDefaults(customRange);
   const selectionsLayout = readViewLayout((await cookies()).get(SELECTIONS_LAYOUT_COOKIE)?.value);
   const chartRange: ChartRange = bereik && bereik in chartRanges ? bereik as ChartRange : defaultChartRange;
   const period: ComparePeriod = vergelijk && vergelijk in comparePeriods ? vergelijk as ComparePeriod : "dag";
@@ -47,12 +54,15 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   if (!scope) return <DashboardShell role="customer" title={session.name} subtitle="Je dashboard"><p className="empty-state">Je account heeft nog geen toegang tot een webshop. Neem contact op met je beheerder.</p></DashboardShell>;
   let tenant: Awaited<ReturnType<typeof loadTenant>> = null;
   let alerts: CustomerAlert[] | null = null;
+  let customSnapshots: Awaited<ReturnType<typeof loadRangeSnapshots>> = [];
   let databaseUnavailable = false;
 
   if (process.env.DATABASE_URL) {
     try {
       // Alerts cover the whole database, so users limited to some webshops do not see them.
       [tenant, alerts] = await Promise.all([loadTenant(session.tenantId, scope.id), canManageTenant(allowed) ? loadCustomerAlerts(session.tenantId) : Promise.resolve(null)]);
+      // The page loads the latest 400 measurements per selection; a chosen period may lie further back.
+      if (tenant && customRange) customSnapshots = await loadRangeSnapshots(tenant.selections.map((selection) => selection.id), scope.id, customRange);
     } catch {
       databaseUnavailable = true;
     }
@@ -79,13 +89,20 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const totalSelections = orderedSelections.filter((selection) => !excludedFromTotal.has(selection.id));
   const totalSeries = totalSelections.map((selection, index) => ({ id: selection.id, name: displayName(selection), color: chartColors[index % chartColors.length] }));
   const latestSelectionCount = (selection: (typeof selections)[number]) => selection.snapshots[0]?.profileCount ?? 0;
-  const profileTrend = buildSelectionSeries(totalSelections, chartRanges[chartRange].days);
+  const profileTrend = customRange
+    ? buildRangeSeries(totalSelections.map((selection) => selection.id), customSnapshots)
+    : buildSelectionSeries(totalSelections, chartRanges[chartRange].days);
   const dashboardHref = (next: { period?: ComparePeriod; range?: ChartRange }) => {
     const params = new URLSearchParams();
     const nextPeriod = next.period ?? period;
-    const nextRange = next.range ?? chartRange;
     if (nextPeriod !== "dag") params.set("vergelijk", nextPeriod);
-    if (nextRange !== defaultChartRange) params.set("bereik", nextRange);
+    if (customRange && !next.range) {
+      params.set("van", customRange.from);
+      params.set("tot", customRange.to);
+    } else {
+      const nextRange = next.range ?? chartRange;
+      if (nextRange !== defaultChartRange) params.set("bereik", nextRange);
+    }
     return params.size ? `/dashboard/customer?${params}` : "/dashboard/customer";
   };
   const selectionWidgets: SelectionWidgetData[] = orderedSelections.map((selection) => {
@@ -157,9 +174,20 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
               <strong className="selection-total-value">{primaryTotal.value}</strong>
               <p className={`selection-widget-delta ${toneClass[primaryTotal.delta.tone]}`}>{primaryTotal.delta.text}</p>
             </div> : <p className="selection-total-hint">Kies via het potlood in een selectiewidget welk aantal hier als hoofdtotaal staat.</p>}
-            <nav className="segmented-control selection-range-control" aria-label="Periode van de grafiek">
-              {(Object.keys(chartRanges) as ChartRange[]).map((key) => <Link aria-current={key === chartRange ? "page" : undefined} href={dashboardHref({ range: key })} key={key} scroll={false}>{chartRanges[key].label}</Link>)}
-            </nav>
+            <div className="selection-range-bar">
+              <nav className="segmented-control selection-range-control" aria-label="Periode van de grafiek">
+                {(Object.keys(chartRanges) as ChartRange[]).map((key) => <Link aria-current={!customRange && key === chartRange ? "page" : undefined} href={dashboardHref({ range: key })} key={key} scroll={false}>{chartRanges[key].label}</Link>)}
+              </nav>
+              <details className={`range-picker${customRange ? " is-active" : ""}`}>
+                <summary><CalendarDays size={15} /> {customRange ? `${formatDay(customRange.from)} – ${formatDay(customRange.to)}` : "Periode"}</summary>
+                <form action="/dashboard/customer" className="range-picker-form">
+                  {period !== "dag" ? <input name="vergelijk" type="hidden" value={period} /> : null}
+                  <label>Van<input defaultValue={pickerRange.from} max={pickerRange.today} name="van" required type="date" /></label>
+                  <label>Tot en met<input defaultValue={pickerRange.to} max={pickerRange.today} name="tot" required type="date" /></label>
+                  <button className="button button-primary" type="submit">Toon periode</button>
+                </form>
+              </details>
+            </div>
             <SelectionTrendChart data={profileTrend} selections={totalSeries} storageKey={`customer-chart-hidden:${session.tenantId}`} />
           </article>
           <article className="panel selection-overview-note">
@@ -229,6 +257,48 @@ function sortByOrder<T extends { id: string }>(items: T[], order: string[]) {
 
 function formatPercent(value: number) {
   return `${value.toLocaleString("nl-NL", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
+function isoDay(time: number) {
+  return new Date(time).toISOString().slice(0, 10);
+}
+
+/** What the date picker starts with: the chosen period, or the last 30 days. */
+function rangePickerDefaults(range: CustomRange | null) {
+  const today = isoDay(Date.now());
+  return { today, from: range?.from ?? isoDay(Date.now() - 30 * dayMs), to: range?.to ?? today };
+}
+
+function formatDay(day: string) {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** Both dates as YYYY-MM-DD, the first not after the second; anything else falls back to the fixed ranges. */
+function readCustomRange(from: string | undefined, to: string | undefined): CustomRange | null {
+  const valid = (value: string | undefined): value is string => !!value && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+  if (!valid(from) || !valid(to) || from > to) return null;
+  return { from, to };
+}
+
+function loadRangeSnapshots(selectionIds: string[], scope: string, range: CustomRange) {
+  return getPrismaClient().selectionSnapshot.findMany({
+    where: { selectionId: { in: selectionIds }, scope, measuredAt: { gte: new Date(`${range.from}T00:00:00Z`), lt: new Date(Date.parse(`${range.to}T00:00:00Z`) + dayMs) } },
+    select: { selectionId: true, measuredAt: true, profileCount: true },
+    orderBy: { measuredAt: "asc" },
+  });
+}
+
+function buildRangeSeries(selectionIds: string[], snapshots: { selectionId: string; measuredAt: Date; profileCount: number }[]) {
+  const shown = new Set(selectionIds);
+  const points = new Map<string, { date: string; [selectionId: string]: number | string }>();
+  for (const snapshot of snapshots) {
+    if (!shown.has(snapshot.selectionId)) continue;
+    const date = snapshot.measuredAt.toISOString().slice(0, 10);
+    const point = points.get(date) ?? { date };
+    point[snapshot.selectionId] = snapshot.profileCount;
+    points.set(date, point);
+  }
+  return [...points.values()].sort((left, right) => left.date.localeCompare(right.date));
 }
 
 function buildSelectionSeries(selections: NonNullable<Awaited<ReturnType<typeof loadTenant>>>["selections"], rangeDays: number | null) {
