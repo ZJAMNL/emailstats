@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { DatabaseZap, Save, Upload } from "lucide-react";
 import { createForecastCollectionAction, predictionWriteBackSettingAction, saveForecastMappingAction, writeForecastNowAction, type ForecastMappingInput } from "@/app/predict-actions";
 import { rfmCollectionDetailsAction, rfmCollectionsAction } from "@/app/rfm-actions";
@@ -13,9 +13,9 @@ type Summary = { at: string; created: number; updated: number; deleted: number; 
 export function ForecastWriteBack({ tenantId, initial, enabled, lastWrite }: { tenantId: string; initial: ForecastMappingInput; enabled: boolean; lastWrite: Summary | null }) {
   const [mapping, setMapping] = useState(initial);
   const [saved, setSaved] = useState(Boolean(initial.collectionId && initial.dateField && initial.skuField));
-  const [collections, setCollections] = useState<{ id: string; name: string }[] | null>(initial.collectionId ? [{ id: initial.collectionId, name: initial.collectionName }] : null);
+  const [collections, setCollections] = useState<{ id: string; name: string }[] | null>(null);
   const [fields, setFields] = useState<string[]>([initial.dateField, initial.skuField, initial.nameField, initial.categoryField, initial.chanceField].filter(Boolean));
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>("load");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [, startTransition] = useTransition();
 
@@ -30,6 +30,21 @@ export function ForecastWriteBack({ tenantId, initial, enabled, lastWrite }: { t
     });
   }
 
+  // Load the customer's collections (and the fields of the chosen one) straight away, so the lists just work.
+  useEffect(() => {
+    let current = true;
+    Promise.all([rfmCollectionsAction(tenantId), initial.collectionId ? rfmCollectionDetailsAction(tenantId, initial.collectionId) : null]).then(([list, details]) => {
+      if (!current) return;
+      setBusy(null);
+      if (details?.ok) setFields(details.data.fields.map((field) => field.name));
+      if (list.ok) setCollections(list.data);
+      else setMessage({ tone: "error", text: list.error });
+    }, () => { if (current) { setBusy(null); setMessage({ tone: "error", text: "Collecties konden niet worden geladen." }); } });
+    return () => { current = false; };
+    // Runs once per page view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const update = (patch: Partial<ForecastMappingInput>) => { setMapping((current) => ({ ...current, ...patch })); setSaved(false); };
 
   function chooseCollection(collectionId: string) {
@@ -41,7 +56,7 @@ export function ForecastWriteBack({ tenantId, initial, enabled, lastWrite }: { t
   const fieldSelect = (label: string, key: "dateField" | "skuField" | "nameField" | "categoryField" | "chanceField", required = false) => (
     <label>{label}{required ? null : <small> (optioneel)</small>}
       <select disabled={!fields.length} onChange={(event) => update({ [key]: event.target.value })} value={mapping[key]}>
-        <option value="">{required ? "Kies een veld" : "Niet gebruiken"}</option>
+        <option value="">{!mapping.collectionId ? "Kies eerst een collectie" : busy === "fields" ? "Velden laden…" : required ? "Kies een veld" : "Niet gebruiken"}</option>
         {fields.map((field) => <option key={field} value={field}>{field}</option>)}
       </select>
     </label>
@@ -55,13 +70,13 @@ export function ForecastWriteBack({ tenantId, initial, enabled, lastWrite }: { t
         <div className="forecast-mapping-collection">
           <label>Collectie
             <select disabled={!collections} onChange={(event) => chooseCollection(event.target.value)} value={mapping.collectionId}>
-              <option value="">Kies een collectie</option>
+              <option value="">{collections ? "Kies een collectie" : busy === "load" ? "Collecties laden…" : "Collecties konden niet worden geladen"}</option>
               {collections?.map((collection) => <option key={collection.id} value={collection.id}>{collection.name}</option>)}
             </select>
           </label>
           <div className="forecast-mapping-buttons">
-            {collections === null || collections.length <= 1 ? <button className="button button-secondary" disabled={busy !== null} onClick={() => run("collections", () => rfmCollectionsAction(tenantId), (data) => { setCollections(data); return null; })} type="button">Bestaande collectie kiezen</button> : null}
-            <button className="button button-secondary" disabled={busy !== null} onClick={() => run("create", () => createForecastCollectionAction(tenantId), (data) => { setMapping(data); setCollections((current) => [...(current ?? []).filter((item) => item.id !== data.collectionId), { id: data.collectionId, name: data.collectionName }]); setFields([data.dateField, data.skuField, data.nameField, data.categoryField, data.chanceField]); setSaved(true); return `Collectie ${data.collectionName} staat klaar en is gekoppeld.`; })} type="button"><DatabaseZap size={15} /> {busy === "create" ? "Aanmaken…" : "Collectie Verwachte_bestellingen aanmaken"}</button>
+            {collections === null && busy !== "load" ? <button className="button button-secondary" onClick={() => run("load", () => rfmCollectionsAction(tenantId), (data) => { setCollections(data); return null; })} type="button">Opnieuw laden</button> : null}
+            <button className="button button-secondary" disabled={busy !== null} onClick={() => run("create", () => createForecastCollectionAction(tenantId), (data) => { setMapping(data); setCollections((current) => [...(current ?? []).filter((item) => item.id !== data.collectionId), { id: data.collectionId, name: data.collectionName }]); setFields([data.dateField, data.skuField, data.nameField, data.categoryField, data.chanceField]); setSaved(true); return `Collectie ${data.collectionName} staat klaar en is gekoppeld.`; })} type="button"><DatabaseZap size={15} /> {busy === "create" ? "Aanmaken…" : "Of: nieuwe collectie Verwachte_bestellingen aanmaken"}</button>
           </div>
         </div>
         <div className="forecast-mapping-fields">
