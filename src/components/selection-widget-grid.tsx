@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, GripVertical, Pencil, X } from "lucide-react";
 import { reorderSelectionWidgetsAction, updateSelectionWidgetAction } from "@/app/actions";
+import { LayoutToggle, rememberLayout } from "@/components/layout-toggle";
+import { SELECTIONS_LAYOUT_COOKIE, type ViewLayout } from "@/lib/view-layout";
 
 type Tone = "up" | "down" | "flat" | "empty";
 
@@ -30,7 +32,8 @@ const toneClass: Record<Tone, string> = {
   empty: "selection-widget-delta-empty",
 };
 
-export function SelectionWidgetGrid({ widgets, canEdit = true }: { widgets: SelectionWidgetData[]; canEdit?: boolean }) {
+export function SelectionWidgetGrid({ widgets, canEdit = true, initialLayout = "grid", controls }: { widgets: SelectionWidgetData[]; canEdit?: boolean; initialLayout?: ViewLayout; controls?: ReactNode }) {
+  const [layout, setLayout] = useState(initialLayout);
   const [orderIds, setOrderIds] = useState(() => widgets.map((widget) => widget.id));
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragHandleId, setDragHandleId] = useState<string | null>(null);
@@ -84,8 +87,12 @@ export function SelectionWidgetGrid({ widgets, canEdit = true }: { widgets: Sele
 
   return (
     <>
+      <div className="selection-compare-bar">
+        {controls}
+        <LayoutToggle layout={layout} onChange={(next) => { setLayout(next); rememberLayout(SELECTIONS_LAYOUT_COOKIE, "/", next); }} />
+      </div>
       {saveError ? <p className="form-error" role="alert">De nieuwe volgorde is niet opgeslagen. Probeer het opnieuw.</p> : null}
-      <section className="selection-widget-grid" aria-label="Profielaantallen per selectie">
+      <section className={`selection-widget-grid${layout === "list" ? " is-list" : ""}`} aria-label="Profielaantallen per selectie">
         {order.map((widget, index) => (
           <article
             className={`panel selection-widget${draggingId === widget.id ? " is-dragging" : ""}`}
@@ -114,8 +121,10 @@ export function SelectionWidgetGrid({ widgets, canEdit = true }: { widgets: Sele
               </div> : null}
             </div>
             <h2 className="selection-widget-name">{widget.name}</h2>
-            <strong className="selection-widget-value">{widget.value}</strong>
-            <p className={`selection-widget-delta ${toneClass[widget.delta.tone]}`}>{widget.delta.text}</p>
+            <div className="selection-widget-figures">
+              <strong className="selection-widget-value">{widget.value}</strong>
+              <p className={`selection-widget-delta ${toneClass[widget.delta.tone]}`}>{widget.delta.text}</p>
+            </div>
             {widget.ratio ? <div className="ratio-block">
               <p className="ratio-headline"><strong>{widget.ratio.percent}</strong> van {widget.ratio.baseName}</p>
               <dl className="ratio-periods" aria-label={`Verschil in procentpunten ten opzichte van ${widget.ratio.baseName}`}>

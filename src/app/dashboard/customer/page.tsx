@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
 import { PerformanceChart } from "@/components/performance-chart";
@@ -10,6 +11,7 @@ import { requireRole } from "@/lib/session";
 import { compareSnapshot, selectionRatio } from "@/lib/snapshots";
 import { canManageTenant, filterCampaigns, getCustomerScope } from "@/lib/webshops";
 import { SelectionWidgetGrid, type SelectionWidgetData } from "@/components/selection-widget-grid";
+import { readViewLayout, SELECTIONS_LAYOUT_COOKIE } from "@/lib/view-layout";
 import { readSelectionRatios, readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +40,7 @@ type CustomerDashboardProps = {
 export default async function CustomerDashboard({ searchParams }: CustomerDashboardProps) {
   const session = await requireRole("customer");
   const { vergelijk, bereik } = await searchParams;
+  const selectionsLayout = readViewLayout((await cookies()).get(SELECTIONS_LAYOUT_COOKIE)?.value);
   const chartRange: ChartRange = bereik && bereik in chartRanges ? bereik as ChartRange : defaultChartRange;
   const period: ComparePeriod = vergelijk && vergelijk in comparePeriods ? vergelijk as ComparePeriod : "dag";
   const { allowed, current: scope } = await getCustomerScope(session);
@@ -165,13 +168,12 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
             <a className="button button-secondary" href="/dashboard/customer/data">Selecties beheren</a>
           </article>
         </section>
-        <div className="selection-compare-bar">
+        <SelectionWidgetGrid canEdit={canManageTenant(allowed)} controls={<>
           <p>Verschil ten opzichte van</p>
           <nav className="segmented-control" aria-label="Vergelijkingsperiode">
             {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => <Link aria-current={key === period ? "page" : undefined} href={dashboardHref({ period: key })} key={key} scroll={false}>{comparePeriods[key].label}</Link>)}
           </nav>
-        </div>
-        <SelectionWidgetGrid canEdit={canManageTenant(allowed)} widgets={selectionWidgets} />
+        </>} initialLayout={selectionsLayout} widgets={selectionWidgets} />
       </> : tenant?.copernica ? <section className="panel table-panel selection-empty-panel"><p className="eyebrow">Profieldata</p><h2>Nog geen selecties gekozen</h2><p>Kies in Beheer welke Copernica-selecties je op dit dashboard wilt volgen.</p><a className="button button-secondary" href="/dashboard/customer/data">Selecties beheren</a></section> : null}
       {dashboardModules.campaignStats && campaigns.length === 0 && !databaseUnavailable ? <section className="panel table-panel"><p className="empty-state">Nog geen campagnes gesynchroniseerd. Koppel Copernica en synchroniseer een periode via Campagnes.</p></section> : null}
       {dashboardModules.campaignStats ? <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Recent gesynchroniseerd</h2></div><span className="tab">{visibleCampaigns.length} campagnes</span></div>{visibleCampaigns.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Open rate</th><th>CTR</th></tr></thead><tbody>{visibleCampaigns.slice(0, 10).map((campaign) => <tr key={campaign.id}><td>{campaign.name}</td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "-"}</td><td>{campaign.sentCount.toLocaleString("nl-NL")}</td><td>{campaign.sentCount ? `${((campaign.openCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td></tr>)}</tbody></table></div> : null}</section> : null}

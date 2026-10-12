@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { ClientEditDialog } from "@/components/client-edit-dialog";
 import { ClientsView } from "@/components/clients-view";
-import { CLIENTS_LAYOUT_COOKIE, readClientsLayout } from "@/lib/clients-layout";
+import { CLIENTS_LAYOUT_COOKIE, readViewLayout } from "@/lib/view-layout";
 import { CreateCustomerDialog } from "@/components/create-customer-dialog";
 import { impersonateCustomerAction } from "@/app/actions";
 import { getPrismaClient } from "@/lib/prisma";
@@ -43,7 +43,7 @@ export default async function AdminClients({ searchParams }: ClientPageProps) {
   const params = await searchParams;
   const search = params.q?.trim() ?? "";
   const ownerFilter = isSuperAdmin ? params.beheerder ?? "" : "";
-  const layout = readClientsLayout((await cookies()).get(CLIENTS_LAYOUT_COOKIE)?.value);
+  const layout = readViewLayout((await cookies()).get(CLIENTS_LAYOUT_COOKIE)?.value);
   let clients: Awaited<ReturnType<typeof loadClients>> = [];
   let owners: Awaited<ReturnType<typeof loadOwners>> = [];
   let databaseUnavailable = false;
