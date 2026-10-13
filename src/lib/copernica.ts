@@ -274,10 +274,23 @@ export async function syncTenantCopernicaData(
     ].filter(({ mailing }) => mailing.target?.sources?.some((source) => String(source.id) === connection.databaseId));
     campaignCount = scopedMailings.length;
     // New campaigns follow the customer's choice; existing ones keep whatever the customer set.
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } });
+    const [tenant, stored] = await Promise.all([
+      prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } }),
+      prisma.campaign.findMany({ where: { tenantId }, select: { copernicaId: true, updatedAt: true } }),
+    ]);
     const included = readCampaignAutoInclude(tenant?.settings);
+    const fetchedAt = new Map(stored.map((campaign) => [campaign.copernicaId, campaign.updatedAt]));
 
-    await mapInBatches(scopedMailings, 8, async ({ mailing, channel }) => {
+    // Statistics of a mailing barely change after a month. Fetching them for every mailing every night made
+    // the sync of large customers too slow to finish, so settled mailings keep their last figures; a sync
+    // for a chosen period (range) still refreshes everything in it.
+    const toSync = range ? scopedMailings : scopedMailings.filter(({ mailing, channel }) => {
+      const sentAt = mailing.timestamp ? new Date(mailing.timestamp.replace(" ", "T") + "Z") : null;
+      const last = fetchedAt.get(`${channel}:${mailing.id}`);
+      return !last || !sentAt || !isSettled(sentAt, last);
+    });
+
+    await mapInBatches(toSync, 8, async ({ mailing, channel }) => {
       const copernicaId = `${channel}:${mailing.id}`;
       const sentAt = mailing.timestamp ? new Date(mailing.timestamp.replace(" ", "T") + "Z") : null;
       const stats = await copernicaGet<CopernicaMailingStats>(
@@ -330,6 +343,16 @@ export async function syncTenantCopernicaData(
   });
 
   return { selectionCount, campaignCount };
+}
+
+const settleDays = 30;
+/** Unique opens and clicks are counted since this moment; figures fetched before it still hold total opens. */
+const uniqueCountsSince = new Date("2026-10-10T16:00:00Z");
+
+/** Whether a mailing's stored statistics are final: sent over a month ago and fetched after that, with unique counts. */
+export function isSettled(sentAt: Date, fetchedAt: Date, now = new Date()) {
+  const settledAt = sentAt.getTime() + settleDays * 24 * 60 * 60 * 1000;
+  return settledAt < now.getTime() && fetchedAt.getTime() >= settledAt && fetchedAt >= uniqueCountsSince;
 }
 
 export async function mapInBatches<T, Result>(items: T[], batchSize: number, callback: (item: T) => Promise<Result>) {
