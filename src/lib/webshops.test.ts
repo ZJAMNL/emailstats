@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 vi.mock("./prisma", () => ({ getPrismaClient: vi.fn() }));
 
-const { ALL_SCOPE, campaignMatchesWebshop, computeAllowedScopes, filterCampaigns, resolveScope } = await import("./webshops");
+const { ALL_SCOPE, campaignMatchesWebshop, computeAllowedScopes, filterCampaigns, resolveScope, selectionsInScope, snapshotScope } = await import("./webshops");
+type Webshop = import("./webshops").WebshopDefinition;
 
-const shopA = { id: "a", name: "Tuinmanieren", profileField: "Webshop", fieldValues: ["TM"], campaignTerms: ["TM", "Tuinmanieren"] };
-const shopB = { id: "b", name: "Bloemenhuis", profileField: "Webshop", fieldValues: ["BH"], campaignTerms: ["Bloemen"] };
+const shopA: Webshop = { id: "a", name: "Tuinmanieren", kind: "field", profileField: "Webshop", fieldValues: ["TM"], selectionIds: [], campaignTerms: ["TM", "Tuinmanieren"] };
+const shopB: Webshop = { id: "b", name: "Bloemenhuis", kind: "field", profileField: "Webshop", fieldValues: ["BH"], selectionIds: [], campaignTerms: ["Bloemen"] };
+const shopC: Webshop = { id: "c", name: "Macropest", kind: "selections", profileField: "", fieldValues: [], selectionIds: ["s2", "s3"], campaignTerms: ["Macropest"] };
 
 describe("computeAllowedScopes", () => {
   it("offers only the whole database when there are no webshops", () => {
@@ -39,5 +41,17 @@ describe("campaign matching", () => {
     expect(campaignMatchesWebshop({ name: "BLOEMEN actie" }, shopA)).toBe(false);
     expect(campaignMatchesWebshop({ name: "Anything" }, null)).toBe(true);
     expect(filterCampaigns([{ name: "TM voorjaar" }, { name: "Bloemen" }], shopB).map((campaign) => campaign.name)).toEqual(["Bloemen"]);
+  });
+});
+
+describe("webshops made of selections", () => {
+  it("show only their own selections, with the counts of the whole database", () => {
+    const selections = [{ id: "s1" }, { id: "s2" }, { id: "s3" }];
+    expect(selectionsInScope(selections, shopC).map((selection) => selection.id)).toEqual(["s2", "s3"]);
+    expect(selectionsInScope(selections, shopA)).toHaveLength(3);
+    expect(selectionsInScope(selections, null)).toHaveLength(3);
+    expect(snapshotScope(shopC)).toBe(ALL_SCOPE);
+    expect(snapshotScope(shopA)).toBe("a");
+    expect(snapshotScope(null)).toBe(ALL_SCOPE);
   });
 });

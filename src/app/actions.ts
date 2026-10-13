@@ -15,7 +15,7 @@ import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
 import { requireTenantManager } from "@/lib/webshops";
 import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
 import { clientIpHash, recordSecurityEvent, resetLimited } from "@/lib/security/events";
-import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
+import { saveSelectionGroups, saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules, type SelectionGroup } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
   return signInDemoAccount(formData);
@@ -268,8 +268,9 @@ const maxHistoryCsvLength = 500_000;
 
 async function validHistoryScope(tenantId: string, scope: string) {
   if (scope === "all") return "all";
-  const webshop = await getPrismaClient().webshop.findFirst({ where: { id: scope, tenantId }, select: { id: true } });
-  return webshop?.id ?? null;
+  const webshop = await getPrismaClient().webshop.findFirst({ where: { id: scope, tenantId }, select: { id: true, kind: true } });
+  // A webshop made of selections has no counts of its own: its history is that of the whole database.
+  return webshop ? (webshop.kind === "selections" ? "all" : webshop.id) : null;
 }
 
 export async function previewSelectionHistoryAction(tenantId: string, csv: string, requestedScope = "all") {
@@ -367,6 +368,19 @@ export async function refreshSelectionsAction(): Promise<{ ok: true; total: numb
   } catch {
     return { ok: false, error: "Ophalen is niet gelukt. Controleer de Copernica-koppeling en probeer opnieuw." };
   }
+}
+
+/** The customer's own groups of selections (headings on the dashboard). */
+export async function saveSelectionGroupsAction(groups: SelectionGroup[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await requireRole("customer");
+  if (!(await requireTenantManager(session))) return { ok: false, error: "Je hebt geen rechten om groepen te beheren." };
+  try {
+    await saveSelectionGroups(session.tenantId, groups);
+  } catch {
+    return { ok: false, error: "De groepen zijn niet opgeslagen. Probeer het opnieuw." };
+  }
+  refresh();
+  return { ok: true };
 }
 
 export async function updateSelectionWidgetAction(formData: FormData) {

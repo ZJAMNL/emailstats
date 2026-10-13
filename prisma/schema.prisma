@@ -207,6 +207,10 @@ model Webshop {
   id            String        @id @default(cuid())
   tenantId      String
   name          String
+  /// "field": profiles whose profile field holds one of the values; "selections": the profiles of the chosen selections.
+  kind          String        @default("field")
+  /// Followed selections (CopernicaSelection ids) that make up a "selections" webshop.
+  selectionIds  String[]      @default([])
   profileField  String
   fieldValues   String[]      @default([])
   campaignTerms String[]      @default([])

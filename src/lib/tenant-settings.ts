@@ -1,4 +1,7 @@
 import { getPrismaClient } from "./prisma";
+import { normalizeSelectionGroups, type SelectionGroup } from "./selection-groups";
+
+export { readSelectionGroups, type SelectionGroup } from "./selection-groups";
 
 export type TenantDashboardModules = {
   databaseStats: boolean;
@@ -129,6 +132,20 @@ export async function saveSelectionWidget(
         },
       },
     },
+  });
+}
+
+export async function saveSelectionGroups(tenantId: string, groups: SelectionGroup[]) {
+  const prisma = getPrismaClient();
+  const [tenant, owned] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true } }),
+    prisma.copernicaSelection.findMany({ where: { tenantId }, select: { id: true } }),
+  ]);
+  if (!tenant) throw new Error("Tenant not found.");
+  const settings = asRecord(tenant.settings);
+  await prisma.tenant.update({
+    where: { id: tenantId },
+    data: { settings: { ...settings, selectionGroups: normalizeSelectionGroups(groups, new Set(owned.map((selection) => selection.id))) } },
   });
 }
 

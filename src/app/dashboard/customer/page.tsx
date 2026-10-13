@@ -10,10 +10,10 @@ import { CustomerAlerts } from "@/components/customer-alerts";
 import { loadCustomerAlerts, type CustomerAlert } from "@/lib/alerts/customer";
 import { requireRole } from "@/lib/session";
 import { compareSnapshot, selectionRatio } from "@/lib/snapshots";
-import { canManageTenant, filterCampaigns, getCustomerScope } from "@/lib/webshops";
+import { canManageTenant, filterCampaigns, getCustomerScope, selectionsInScope, snapshotScope } from "@/lib/webshops";
 import { SelectionWidgetGrid, type SelectionWidgetData } from "@/components/selection-widget-grid";
 import { readViewLayout, SELECTIONS_LAYOUT_COOKIE } from "@/lib/view-layout";
-import { readSelectionRatios, readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
+import { readSelectionGroups, readSelectionRatios, readSelectionWidgetSettings, readTenantDashboardModules } from "@/lib/tenant-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -60,9 +60,9 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   if (process.env.DATABASE_URL) {
     try {
       // Alerts cover the whole database, so users limited to some webshops do not see them.
-      [tenant, alerts] = await Promise.all([loadTenant(session.tenantId, scope.id), canManageTenant(allowed) ? loadCustomerAlerts(session.tenantId) : Promise.resolve(null)]);
+      [tenant, alerts] = await Promise.all([loadTenant(session.tenantId, snapshotScope(scope.webshop)), canManageTenant(allowed) ? loadCustomerAlerts(session.tenantId) : Promise.resolve(null)]);
       // The page loads the latest 400 measurements per selection; a chosen period may lie further back.
-      if (tenant && customRange) customSnapshots = await loadRangeSnapshots(tenant.selections.map((selection) => selection.id), scope.id, customRange);
+      if (tenant && customRange) customSnapshots = await loadRangeSnapshots(tenant.selections.map((selection) => selection.id), snapshotScope(scope.webshop), customRange);
     } catch {
       databaseUnavailable = true;
     }
@@ -79,7 +79,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
   const chartData = buildMonthlySeries(campaigns);
   const dashboardModules = readTenantDashboardModules(tenant?.settings);
   const visibleCampaigns = dashboardModules.campaignStats ? campaigns : [];
-  const selections = dashboardModules.databaseStats ? tenant?.selections ?? [] : [];
+  const selections = dashboardModules.databaseStats ? selectionsInScope(tenant?.selections ?? [], scope.webshop) : [];
   const selectionRatios = readSelectionRatios(tenant?.settings);
   const widgetSettings = readSelectionWidgetSettings(tenant?.settings);
   const excludedFromTotal = new Set(widgetSettings.excludedFromTotal);
@@ -201,7 +201,7 @@ export default async function CustomerDashboard({ searchParams }: CustomerDashbo
           <nav className="segmented-control" aria-label="Vergelijkingsperiode">
             {(Object.keys(comparePeriods) as ComparePeriod[]).map((key) => <Link aria-current={key === period ? "page" : undefined} href={dashboardHref({ period: key })} key={key} scroll={false}>{comparePeriods[key].label}</Link>)}
           </nav>
-        </>} initialLayout={selectionsLayout} widgets={selectionWidgets} />
+        </>} groups={readSelectionGroups(tenant?.settings)} initialLayout={selectionsLayout} widgets={selectionWidgets} />
       </> : tenant?.copernica ? <section className="panel table-panel selection-empty-panel"><p className="eyebrow">Profieldata</p><h2>Nog geen selecties gekozen</h2><p>Kies in Beheer welke Copernica-selecties je op dit dashboard wilt volgen.</p><a className="button button-secondary" href="/dashboard/customer/data">Selecties beheren</a></section> : null}
       {dashboardModules.campaignStats && campaigns.length === 0 && !databaseUnavailable ? <section className="panel table-panel"><p className="empty-state">Nog geen campagnes gesynchroniseerd. Koppel Copernica en synchroniseer een periode via Campagnes.</p></section> : null}
       {dashboardModules.campaignStats ? <section className="panel table-panel"><div className="panel-heading"><div><p className="eyebrow">Campagnes</p><h2>Recent gesynchroniseerd</h2></div><span className="tab">{visibleCampaigns.length} campagnes</span></div>{visibleCampaigns.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Campagne</th><th>Verzonden</th><th>Ontvangers</th><th>Open rate</th><th>CTR</th></tr></thead><tbody>{visibleCampaigns.slice(0, 10).map((campaign) => <tr key={campaign.id}><td>{campaign.name}</td><td>{campaign.sentAt?.toLocaleDateString("nl-NL") ?? "-"}</td><td>{campaign.sentCount.toLocaleString("nl-NL")}</td><td>{campaign.sentCount ? `${((campaign.openCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td><td>{campaign.sentCount ? `${((campaign.clickCount / campaign.sentCount) * 100).toFixed(1)}%` : "-"}</td></tr>)}</tbody></table></div> : null}</section> : null}

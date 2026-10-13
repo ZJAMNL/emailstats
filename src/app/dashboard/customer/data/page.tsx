@@ -8,7 +8,8 @@ import { requireRole } from "@/lib/session";
 import { ALL_SCOPE, requireTenantManager } from "@/lib/webshops";
 import { RefreshSelectionsButton } from "@/components/refresh-selections-button";
 import { SelectionPicker } from "@/components/selection-picker";
-import { readTenantDashboardModules } from "@/lib/tenant-settings";
+import { readSelectionGroups, readSelectionWidgetSettings, readTenantDashboardModules, type SelectionGroup } from "@/lib/tenant-settings";
+import { SelectionGroupsEditor } from "@/components/selection-groups-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
   let enabledSelections: Awaited<ReturnType<typeof loadEnabledSelections>> = [];
   let databaseUnavailable = false;
   let databaseStatsEnabled = true;
+  let groups: SelectionGroup[] = [];
+  let labels: Record<string, string> = {};
   let campaignStatsEnabled = false;
   let campaignCounts = { total: 0, shown: 0 };
 
@@ -56,6 +59,8 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
         getPrismaClient().campaign.groupBy({ by: ["included"], where: { tenantId: session.tenantId }, _count: { _all: true } }),
       ]);
       databaseStatsEnabled = readTenantDashboardModules(settings).databaseStats;
+      groups = readSelectionGroups(settings);
+      labels = readSelectionWidgetSettings(settings).labels;
       campaignStatsEnabled = readTenantDashboardModules(settings).campaignStats;
       campaignCounts = { total: byStatus.reduce((sum, row) => sum + row._count._all, 0), shown: byStatus.find((row) => row.included)?._count._all ?? 0 };
     } catch {
@@ -105,6 +110,12 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
             enabled: selection.enabled,
             profileCount: enabledById.get(selection.id)?.snapshots[0]?.profileCount ?? null,
           }))} />}
+        </section>
+
+        <section className="panel table-panel">
+          <div className="panel-heading"><div><p className="eyebrow">Ordenen</p><h2>Groepen van selecties</h2></div><span className="tab">{groups.length}</span></div>
+          <p className="tenant-boundary">Zet bij elkaar horende selecties onder één kop op je dashboard, bijvoorbeeld alle selecties met orders, of B2B en B2C.</p>
+          <SelectionGroupsEditor groups={groups} selections={enabledSelections.map((selection) => ({ id: selection.id, name: labels[selection.id] ?? selection.name }))} />
         </section>
 
         <section className="panel table-panel">

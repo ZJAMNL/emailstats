@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { ArrowLeft, ArrowRight, GripVertical, Pencil, X } from "lucide-react";
 import { reorderSelectionWidgetsAction, updateSelectionWidgetAction } from "@/app/actions";
 import { LayoutToggle, rememberLayout } from "@/components/layout-toggle";
+import { groupWidgets, type SelectionGroup } from "@/lib/selection-groups";
 import { SELECTIONS_LAYOUT_COOKIE, type ViewLayout } from "@/lib/view-layout";
 
 type Tone = "up" | "down" | "flat" | "empty";
@@ -32,7 +33,7 @@ const toneClass: Record<Tone, string> = {
   empty: "selection-widget-delta-empty",
 };
 
-export function SelectionWidgetGrid({ widgets, canEdit = true, initialLayout = "grid", controls }: { widgets: SelectionWidgetData[]; canEdit?: boolean; initialLayout?: ViewLayout; controls?: ReactNode }) {
+export function SelectionWidgetGrid({ widgets, groups = [], canEdit = true, initialLayout = "grid", controls }: { widgets: SelectionWidgetData[]; groups?: SelectionGroup[]; canEdit?: boolean; initialLayout?: ViewLayout; controls?: ReactNode }) {
   const [layout, setLayout] = useState(initialLayout);
   const [orderIds, setOrderIds] = useState(() => widgets.map((widget) => widget.id));
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -82,6 +83,8 @@ export function SelectionWidgetGrid({ widgets, canEdit = true, initialLayout = "
     moveTo(id, order.findIndex((widget) => widget.id === id) + offset);
   }
 
+  const sections = groupWidgets(order, groups);
+  const grouped = sections.some((section) => section.group);
   const editing = order.find((widget) => widget.id === editingId) ?? null;
   const editingIndex = editing ? order.indexOf(editing) : -1;
 
@@ -92,8 +95,11 @@ export function SelectionWidgetGrid({ widgets, canEdit = true, initialLayout = "
         <LayoutToggle layout={layout} onChange={(next) => { setLayout(next); rememberLayout(SELECTIONS_LAYOUT_COOKIE, "/", next); }} />
       </div>
       {saveError ? <p className="form-error" role="alert">De nieuwe volgorde is niet opgeslagen. Probeer het opnieuw.</p> : null}
-      <section className={`selection-widget-grid${layout === "list" ? " is-list" : ""}`} aria-label="Profielaantallen per selectie">
-        {order.map((widget, index) => (
+      {sections.map((section) => (
+        <div className="widget-group-section" key={section.group?.id ?? "overig"}>
+          {grouped ? <h3 className="widget-group-heading">{section.group?.name ?? "Overige selecties"} <small>{section.items.length} {section.items.length === 1 ? "selectie" : "selecties"}</small></h3> : null}
+      <section className={`selection-widget-grid${layout === "list" ? " is-list" : ""}`} aria-label={section.group ? `Selecties in ${section.group.name}` : "Profielaantallen per selectie"}>
+        {section.items.map((widget) => { const index = order.indexOf(widget); return (
           <article
             className={`panel selection-widget${draggingId === widget.id ? " is-dragging" : ""}`}
             draggable={canEdit && dragHandleId === widget.id}
@@ -133,8 +139,10 @@ export function SelectionWidgetGrid({ widgets, canEdit = true, initialLayout = "
             </div> : null}
             <small className="selection-widget-date">{widget.lastMeasured}{widget.isPrimaryTotal ? " · hoofdtotaal" : ""}{widget.includeInTotal ? "" : " · niet in grafiek"}</small>
           </article>
-        ))}
+        ); })}
       </section>
+        </div>
+      ))}
 
       <dialog aria-labelledby="edit-widget-title" className="customer-dialog widget-dialog" onClose={() => { setEditingId(null); setWidgetError(false); }} ref={dialogRef}>
         {editing ? <form action={async (formData) => {

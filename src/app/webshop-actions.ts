@@ -9,6 +9,7 @@ import { sendPasswordMail } from "@/lib/password-reset";
 import { getPrismaClient } from "@/lib/prisma";
 import { adminForTenant } from "@/lib/admin-access";
 import { resetTwoFactor } from "@/lib/security/mfa-reset";
+import { saveSelectionGroups, type SelectionGroup } from "@/lib/tenant-settings";
 import { requireRole } from "@/lib/session";
 import { campaignMatchesWebshop, getAllowedScopes, SCOPE_COOKIE } from "@/lib/webshops";
 
@@ -16,17 +17,27 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const noAccess = { ok: false as const, error: "Je hebt geen toegang tot deze klant." };
 
-export type WebshopInput = { id?: string; name: string; profileField: string; fieldValues: string[]; campaignTerms: string[] };
+export type WebshopInput = { id?: string; name: string; kind: "field" | "selections"; profileField: string; fieldValues: string[]; selectionIds: string[]; campaignTerms: string[] };
 export type TenantUserInput = { name: string; email: string; allWebshops: boolean; webshopIds: string[] };
 
 const list = (values: unknown, max = 20) => Array.isArray(values) ? [...new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))].slice(0, max).map((value) => value.slice(0, 120)) : [];
 
-function validateWebshop(input: WebshopInput) {
+const invalidWebshop = "Vul een naam in, en kies een profielveld met minstens één waarde of minstens één selectie.";
+
+/** A webshop on a profile field needs the field and its values; one made of selections needs followed selections of this customer. */
+async function validateWebshop(tenantId: string, input: WebshopInput) {
   const name = String(input?.name ?? "").trim().slice(0, 80);
+  const campaignTerms = list(input?.campaignTerms);
+  if (!name) return null;
+  if (input?.kind === "selections") {
+    const requested = list(input.selectionIds, 200);
+    const selectionIds = (await getPrismaClient().copernicaSelection.findMany({ where: { tenantId, id: { in: requested } }, select: { id: true } })).map((selection) => selection.id);
+    return selectionIds.length ? { name, kind: "selections", profileField: "", fieldValues: [], selectionIds, campaignTerms } : null;
+  }
   const profileField = String(input?.profileField ?? "").trim().slice(0, 120);
   const fieldValues = list(input?.fieldValues);
-  if (!name || !profileField || !fieldValues.length) return null;
-  return { name, profileField, fieldValues, campaignTerms: list(input?.campaignTerms) };
+  if (!profileField || !fieldValues.length) return null;
+  return { name, kind: "field", profileField, fieldValues, selectionIds: [], campaignTerms };
 }
 
 // ---------------------------------------------------------------- webshops (admin)
@@ -53,18 +64,19 @@ export async function webshopSampleValuesAction(tenantId: string, field: string)
   }
 }
 
-export async function webshopCheckAction(tenantId: string, input: WebshopInput): Promise<Result<{ profiles: number; campaigns: number; totalCampaigns: number }>> {
+export async function webshopCheckAction(tenantId: string, input: WebshopInput): Promise<Result<{ profiles: number | null; campaigns: number; totalCampaigns: number }>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
-  const webshop = validateWebshop(input);
-  if (!webshop) return { ok: false, error: "Vul een naam, een profielveld en minstens één waarde in." };
+  const webshop = await validateWebshop(tenantId, input);
+  if (!webshop) return { ok: false, error: invalidWebshop };
   try {
+    const campaigns = await getPrismaClient().campaign.findMany({ where: { tenantId }, select: { name: true } });
+    const matching = campaigns.filter((campaign) => campaignMatchesWebshop(campaign, { id: "", ...webshop, kind: webshop.kind === "selections" ? "selections" : "field" })).length;
+    // A webshop made of selections has no profile count of its own: its selections are counted every night anyway.
+    if (webshop.kind === "selections") return { ok: true, data: { profiles: null, campaigns: matching, totalCampaigns: campaigns.length } };
     const connected = await getTenantCopernica(tenantId);
     if (!connected) return { ok: false, error: "Deze klant heeft nog geen Copernica-koppeling." };
-    const [profiles, campaigns] = await Promise.all([
-      countProfilesForWebshop(connected.jwt, `database/${encodeURIComponent(connected.connection.databaseId)}/profiles`, webshop),
-      getPrismaClient().campaign.findMany({ where: { tenantId }, select: { name: true } }),
-    ]);
-    return { ok: true, data: { profiles, campaigns: campaigns.filter((campaign) => campaignMatchesWebshop(campaign, { id: "", ...webshop })).length, totalCampaigns: campaigns.length } };
+    const profiles = await countProfilesForWebshop(connected.jwt, `database/${encodeURIComponent(connected.connection.databaseId)}/profiles`, webshop);
+    return { ok: true, data: { profiles, campaigns: matching, totalCampaigns: campaigns.length } };
   } catch {
     return { ok: false, error: "De controle is mislukt. Controleer het veld en de waarden." };
   }
@@ -72,8 +84,8 @@ export async function webshopCheckAction(tenantId: string, input: WebshopInput):
 
 export async function saveWebshopAction(tenantId: string, input: WebshopInput): Promise<Result<null>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
-  const webshop = validateWebshop(input);
-  if (!webshop) return { ok: false, error: "Vul een naam, een profielveld en minstens één waarde in." };
+  const webshop = await validateWebshop(tenantId, input);
+  if (!webshop) return { ok: false, error: invalidWebshop };
   const prisma = getPrismaClient();
   try {
     if (input.id) {
@@ -99,6 +111,17 @@ export async function deleteWebshopAction(tenantId: string, webshopId: string): 
     prisma.selectionSnapshot.deleteMany({ where: { scope: webshop.id, selection: { tenantId } } }),
     prisma.webshop.delete({ where: { id: webshop.id } }),
   ]);
+  refresh();
+  return { ok: true, data: null };
+}
+
+export async function saveTenantSelectionGroupsAction(tenantId: string, groups: SelectionGroup[]): Promise<Result<null>> {
+  if (!(await adminForTenant(tenantId))) return noAccess;
+  try {
+    await saveSelectionGroups(tenantId, groups);
+  } catch {
+    return { ok: false, error: "De groepen zijn niet opgeslagen. Probeer het opnieuw." };
+  }
   refresh();
   return { ok: true, data: null };
 }

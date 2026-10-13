@@ -8,6 +8,7 @@ import { AdminUsers } from "@/components/admin-users";
 import { AdminWebshops } from "@/components/admin-webshops";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { MetricsGrid } from "@/components/metrics-grid";
+import { SelectionGroupsEditor } from "@/components/selection-groups-editor";
 import { SelectionHistoryImport } from "@/components/selection-history-import";
 import { SelectionTrendChart } from "@/components/selection-trend-chart";
 import { getPrismaClient } from "@/lib/prisma";
@@ -15,8 +16,8 @@ import { requireTenantAdmin } from "@/lib/admin-access";
 import { canSendAlertMail } from "@/lib/alerts/mail";
 import { alertRulesByKey } from "@/lib/alerts/rules";
 import { readAlertSettings } from "@/lib/alerts/settings";
-import { getTenantDashboardModules } from "@/lib/tenant-settings";
-import { filterCampaigns, getAdminScope, loadWebshops } from "@/lib/webshops";
+import { getTenantDashboardModules, readSelectionGroups, readSelectionWidgetSettings } from "@/lib/tenant-settings";
+import { filterCampaigns, getAdminScope, loadWebshops, selectionsInScope, snapshotScope } from "@/lib/webshops";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       status: true,
       createdAt: true,
       updatedAt: true,
+      settings: true,
       users: {
         where: { role: "CUSTOMER" },
         select: { id: true, email: true, name: true, role: true, allWebshops: true, webshops: { select: { webshopId: true } }, createdAt: true, updatedAt: true, totpEnabledAt: true, lastLoginAt: true },
@@ -55,7 +57,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       },
       selections: {
         where: { enabled: true },
-        include: { snapshots: { where: { scope: scope.id }, orderBy: { measuredAt: "desc" }, take: 90 } },
+        include: { snapshots: { where: { scope: snapshotScope(scope.webshop) }, orderBy: { measuredAt: "desc" }, take: 90 } },
         orderBy: { name: "asc" },
       },
       // Same campaigns as the customer sees; hidden ones are counted separately.
@@ -76,7 +78,9 @@ export default async function AdminClientDetail({ params, searchParams }: Client
 
   const [dashboardModules, hiddenCampaigns] = await Promise.all([getTenantDashboardModules(tenant.id), getPrismaClient().campaign.count({ where: { tenantId: tenant.id, included: false } })]);
   const campaigns = filterCampaigns(tenant.campaigns, scope.webshop);
-  const enabledSelections = tenant.selections.filter((selection) => selection.enabled);
+  const enabledSelections = selectionsInScope(tenant.selections, scope.webshop);
+  const selectionGroups = readSelectionGroups(tenant.settings);
+  const widgetLabels = readSelectionWidgetSettings(tenant.settings).labels;
   const totalSent = campaigns.reduce((total, campaign) => total + campaign.sentCount, 0);
   const totalOpens = campaigns.reduce((total, campaign) => total + campaign.openCount, 0);
   const totalClicks = campaigns.reduce((total, campaign) => total + campaign.clickCount, 0);
@@ -152,8 +156,14 @@ export default async function AdminClientDetail({ params, searchParams }: Client
 
       <section className="panel table-panel" id="webshops">
         <div className="panel-heading"><div><p className="eyebrow">Omgevingen</p><h2>Webshops in deze database</h2></div><span className="tab">{webshops.length}</span></div>
-        <p className="tenant-boundary">Splits de database op een profielveld in afzonderlijke webshops. De klant kiest na het inloggen welke webshop hij bekijkt; per gebruiker bepaal je hieronder welke webshops hij mag zien.</p>
-        <AdminWebshops connected={Boolean(tenant.copernica)} tenantId={tenant.id} webshops={webshops} />
+        <p className="tenant-boundary">Verdeel de database in afzonderlijke webshops: op basis van gevolgde selecties (bijvoorbeeld A_Macrovet en B_Macropest) of van een profielveld. De klant kiest na het inloggen welke webshop hij bekijkt; per gebruiker bepaal je hieronder welke webshops hij mag zien.</p>
+        <AdminWebshops connected={Boolean(tenant.copernica)} selections={tenant.selections.map((selection) => ({ id: selection.id, name: selection.name }))} tenantId={tenant.id} webshops={webshops} />
+      </section>
+
+      <section className="panel table-panel" id="groepen">
+        <div className="panel-heading"><div><p className="eyebrow">Ordenen</p><h2>Groepen van selecties</h2></div><span className="tab">{selectionGroups.length}</span></div>
+        <p className="tenant-boundary">Zet bij elkaar horende selecties onder één kop op het dashboard van de klant, bijvoorbeeld een groep binnen een webshop. Een groep verschijnt alleen bij de webshop waar zijn selecties bij horen. De klant kan groepen ook zelf aanpassen bij Beheer.</p>
+        <SelectionGroupsEditor groups={selectionGroups} selections={tenant.selections.map((selection) => ({ id: selection.id, name: widgetLabels[selection.id] ?? selection.name }))} tenantId={tenant.id} />
       </section>
 
       <section className="panel table-panel" id="gebruikers">
@@ -164,7 +174,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       <section className="panel table-panel">
         <div className="panel-heading"><div><p className="eyebrow">Historische data</p><h2>Selectiehistorie importeren</h2></div></div>
         <p className="tenant-boundary">Voeg eerdere profielaantallen toe vanuit een CSV-bestand. Je ziet eerst een voorbeeld; er wordt pas iets opgeslagen als je bevestigt.</p>
-        <SelectionHistoryImport tenantId={tenant.id} webshops={webshops.map((webshop) => ({ id: webshop.id, name: webshop.name }))} />
+        <SelectionHistoryImport tenantId={tenant.id} webshops={webshops.filter((webshop) => webshop.kind === "field").map((webshop) => ({ id: webshop.id, name: webshop.name }))} />
       </section>
 
       <section className="panel table-panel">

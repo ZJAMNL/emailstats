@@ -5,7 +5,8 @@ import type { Session } from "./session";
 export const ALL_SCOPE = "all";
 export const SCOPE_COOKIE = "webshop-scope";
 
-export type WebshopDefinition = { id: string; name: string; profileField: string; fieldValues: string[]; campaignTerms: string[] };
+export type WebshopKind = "field" | "selections";
+export type WebshopDefinition = { id: string; name: string; kind: WebshopKind; profileField: string; fieldValues: string[]; selectionIds: string[]; campaignTerms: string[] };
 export type ScopeOption = { id: string; name: string; webshop: WebshopDefinition | null };
 
 /**
@@ -33,12 +34,28 @@ export function filterCampaigns<T extends { name: string }>(campaigns: T[], webs
   return webshop ? campaigns.filter((campaign) => campaignMatchesWebshop(campaign, webshop)) : campaigns;
 }
 
-export function loadWebshops(tenantId: string): Promise<WebshopDefinition[]> {
-  return getPrismaClient().webshop.findMany({
+/**
+ * Which stored counts belong to a scope. A webshop on a profile field has its own counts per selection;
+ * a webshop made of selections simply shows those selections' counts for the whole database.
+ */
+export function snapshotScope(webshop: WebshopDefinition | null) {
+  return webshop?.kind === "field" ? webshop.id : ALL_SCOPE;
+}
+
+/** The selections a scope shows: all of them, or only those that make up a selections webshop. */
+export function selectionsInScope<T extends { id: string }>(selections: T[], webshop: WebshopDefinition | null) {
+  if (webshop?.kind !== "selections") return selections;
+  const ids = new Set(webshop.selectionIds);
+  return selections.filter((selection) => ids.has(selection.id));
+}
+
+export async function loadWebshops(tenantId: string): Promise<WebshopDefinition[]> {
+  const webshops = await getPrismaClient().webshop.findMany({
     where: { tenantId },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, profileField: true, fieldValues: true, campaignTerms: true },
+    select: { id: true, name: true, kind: true, profileField: true, fieldValues: true, selectionIds: true, campaignTerms: true },
   });
+  return webshops.map((webshop) => ({ ...webshop, kind: webshop.kind === "selections" ? "selections" : "field" }));
 }
 
 /** Allowed scopes for the signed-in customer, read from the database on every request so admin changes apply at once. */

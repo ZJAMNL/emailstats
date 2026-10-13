@@ -241,7 +241,8 @@ export async function syncTenantCopernicaData(
     selectionCount = enabledSelections.length;
     const measuredAt = new Date();
     measuredAt.setUTCHours(0, 0, 0, 0);
-    const webshops = await loadWebshops(tenantId);
+    // Only webshops on a profile field need counts of their own; a webshop made of selections reuses the totals.
+    const webshops = (await loadWebshops(tenantId)).filter((webshop) => webshop.kind === "field");
     // One count for the whole database plus one per webshop for every followed selection.
     const tasks = enabledSelections.flatMap((selection) => [
       { selection, scope: "all", webshop: null as WebshopDefinition | null },
