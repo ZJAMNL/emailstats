@@ -6,6 +6,7 @@ import { requireSuperAdmin } from "@/lib/admin-access";
 import { getAppUrl } from "@/lib/app-url";
 import { sendPasswordMail } from "@/lib/password-reset";
 import { getPrismaClient } from "@/lib/prisma";
+import { resetTwoFactor } from "@/lib/security/mfa-reset";
 
 const page = "/dashboard/admin/beheerders";
 const adminRoles = ["ADMIN", "SUPERADMIN"] as const;
@@ -79,6 +80,15 @@ export async function sendAdminLoginLinkAction(formData: FormData) {
     redirect(`${page}?error=login-link-failed`);
   }
   redirect(`${page}?notice=login-link-sent`);
+}
+
+export async function resetAdminTwoFactorAction(formData: FormData) {
+  const session = await requireSuperAdmin();
+  const user = await getPrismaClient().user.findFirst({ where: { id: readField(formData, "userId"), role: { in: [...adminRoles] } }, select: { id: true } });
+  if (!user) redirect(`${page}?error=invalid-admin`);
+  await resetTwoFactor(user.id, session);
+  // Resetting your own 2FA ends your session too; set it up again at the next sign-in.
+  redirect(user.id === session.userId ? "/uitloggen" : `${page}?notice=mfa-reset`);
 }
 
 function readRole(formData: FormData) {

@@ -8,6 +8,7 @@ import { countProfilesForWebshop, getTenantCopernica, listDatabaseFields, sample
 import { sendPasswordMail } from "@/lib/password-reset";
 import { getPrismaClient } from "@/lib/prisma";
 import { adminForTenant } from "@/lib/admin-access";
+import { resetTwoFactor } from "@/lib/security/mfa-reset";
 import { requireRole } from "@/lib/session";
 import { campaignMatchesWebshop, getAllowedScopes, SCOPE_COOKIE } from "@/lib/webshops";
 
@@ -194,6 +195,16 @@ export async function sendUserLoginLinkAction(tenantId: string, userId: string):
   } catch {
     return { ok: false, error: "De inloglink kon niet worden verstuurd. Controleer de Resend-koppeling." };
   }
+  return { ok: true, data: null };
+}
+
+export async function resetUserTwoFactorAction(tenantId: string, userId: string): Promise<Result<null>> {
+  const admin = await adminForTenant(tenantId);
+  if (!admin) return noAccess;
+  const user = await getPrismaClient().user.findFirst({ where: { id: userId, tenantId, role: "CUSTOMER" }, select: { id: true } });
+  if (!user) return { ok: false, error: "Deze gebruiker bestaat niet meer." };
+  await resetTwoFactor(user.id, admin);
+  refresh();
   return { ok: true, data: null };
 }
 

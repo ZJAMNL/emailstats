@@ -3,6 +3,12 @@ import { redirect } from "next/navigation";
 import { signInAction } from "@/app/actions";
 import { dashboardPath, getSession } from "@/lib/session";
 
+const loginErrors: Record<string, string> = {
+  "invalid-credentials": "De combinatie van e-mailadres en wachtwoord is onjuist.",
+  locked: "Te veel mislukte inlogpogingen. Wacht een kwartier en probeer het opnieuw, of stel een nieuw wachtwoord in.",
+  expired: "Je inlogsessie is verlopen. Log opnieuw in.",
+};
+
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; notice?: string }> }) {
   const session = await getSession();
   if (session) {
@@ -20,7 +26,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <form action={signInAction} className="auth-form">
           <label>Emailadres<input name="email" type="email" placeholder="naam@bedrijf.nl" autoComplete="email" required /></label>
           <label>Wachtwoord<input name="password" type="password" placeholder="Voer wachtwoord in" autoComplete="current-password" required /></label>
-          {error ? <p className="form-error">De combinatie van e-mailadres en wachtwoord is onjuist.</p> : null}
+          {error ? <p className="form-error" role="alert">{loginErrors[error] ?? loginErrors["invalid-credentials"]}</p> : null}
           <button type="submit" className="button button-primary">Inloggen</button>
           <Link className="auth-link" href="/wachtwoord-vergeten">Wachtwoord vergeten?</Link>
         </form>

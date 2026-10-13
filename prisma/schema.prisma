@@ -14,19 +14,29 @@ enum Role {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  name         String
-  role         Role          @default(CUSTOMER)
-  tenantId     String?
-  tenant       Tenant?       @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: Cascade)
-  passwordHash String
-  allWebshops  Boolean       @default(true)
-  webshops     UserWebshop[]
+  id             String        @id @default(cuid())
+  email          String        @unique
+  name           String
+  role           Role          @default(CUSTOMER)
+  tenantId       String?
+  tenant         Tenant?       @relation("TenantUsers", fields: [tenantId], references: [id], onDelete: Cascade)
+  passwordHash   String
+  allWebshops    Boolean       @default(true)
+  webshops       UserWebshop[]
   /// Customers (tenants) this beheerder manages; only used for ADMIN and SUPERADMIN users.
-  ownedTenants Tenant[]      @relation("TenantOwner")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  ownedTenants   Tenant[]      @relation("TenantOwner")
+  /// Authenticator-app secret (TOTP), encrypted like the Copernica tokens. Null until 2FA is set up.
+  totpSecret     String?
+  totpEnabledAt  DateTime?
+  /// The last 30-second step a code was accepted for, so a code cannot be used twice.
+  totpLastStep   Int?
+  /// SHA-256 hashes of the unused recovery codes.
+  recoveryCodes  String[]      @default([])
+  /// Raised to sign out every session at once (new password, 2FA reset).
+  sessionVersion Int           @default(0)
+  lastLoginAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([tenantId])
 }
@@ -343,4 +353,34 @@ model InsightWriteBack {
   tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@id([tenantId, copernicaProfileId, insightKey])
+}
+
+/// Sign-in and account events: the basis for lockouts and the weekly security report.
+model SecurityEvent {
+  id        String   @id @default(cuid())
+  /// login_failed, login_success, mfa_failed, locked, password_reset_requested, password_set, mfa_enabled, mfa_reset
+  type      String
+  userId    String?
+  email     String?
+  /// SHA-256 of the client IP, so attempts can be counted without storing the address itself.
+  ipHash    String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([type, email, createdAt])
+  @@index([type, ipHash, createdAt])
+  @@index([createdAt])
+}
+
+/// Result of the weekly (or manual) security test.
+model SecurityScan {
+  id        String   @id @default(cuid())
+  ranAt     DateTime @default(now())
+  /// ok, warning or critical: the worst result of all checks.
+  status    String
+  findings  Json
+  emailedTo String[] @default([])
+  trigger   String   @default("cron")
+
+  @@index([ranAt])
 }

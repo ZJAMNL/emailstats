@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const protectedRoutes = ["/dashboard/admin", "/dashboard/admin/clients", "/dashboard/admin/campaigns", "/dashboard/customer", "/dashboard/customer/data", "/dashboard/customer/campaigns"];
+// Every dashboard page; the pages themselves check the session and role as well.
+const protectedRoutes = ["/dashboard"];
 
 const securityHeaders = {
-  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';",
+  // 'unsafe-eval' is only needed by the development server (React refresh), never in production.
+  "Content-Security-Policy": `default-src 'self'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';`,
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "X-Content-Type-Options": "nosniff",
@@ -12,7 +14,7 @@ const securityHeaders = {
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
 };
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
   Object.entries(securityHeaders).forEach(([key, value]) => {

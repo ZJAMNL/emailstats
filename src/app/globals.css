@@ -27,6 +27,7 @@ button { cursor: pointer; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; min-height: 42px; padding: 0 1rem; border-radius: 12px; border: 1px solid transparent; font-weight: 700; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
 .button:hover { transform: translateY(-1px); }
 .button-primary { background: linear-gradient(135deg, var(--primary), var(--primary-strong)); color: white; box-shadow: 0 10px 28px rgba(124, 109, 242, .28); }
+.button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; transform: none; }
 .button-secondary { background: rgba(255,255,255,.05); border-color: var(--border); color: var(--text); }
 .button-ghost { border-color: var(--border); background: transparent; color: var(--text); }
 .topbar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
@@ -199,6 +200,45 @@ td { color: #dfe9f5; }
 .auth-form input { width: 100%; min-height: 48px; padding: 0 .9rem; border: 1px solid var(--border); border-radius: 12px; outline: none; background: rgba(255,255,255,.03); color: var(--text); }
 .auth-form input:focus { border-color: rgba(124,109,242,.9); box-shadow: 0 0 0 3px rgba(124,109,242,.14); }
 .form-error { color: var(--danger); font-size: .82rem; }
+.security-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 2rem; }
+.security-status { display: flex; align-items: flex-start; gap: .9rem; color: var(--muted); }
+.security-status h2 { margin: 0 0 .2rem; color: var(--text); font-size: 1.25rem; }
+.security-status p { margin: 0; }
+.security-status.is-ok > svg { color: var(--accent); }
+.security-status.is-warning > svg { color: #d9a441; }
+.security-status.is-critical > svg { color: #ff6e76; }
+.security-run { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; }
+.security-findings { display: grid; gap: .1rem; margin: 0; padding: 0; list-style: none; }
+.security-findings li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 1rem; padding: .85rem 0; border-top: 1px solid var(--border); }
+.security-findings li:first-child { border-top: 0; }
+.security-findings small { color: var(--muted); }
+.security-findings p { margin: .25rem 0 0; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+.security-findings .security-advice { color: var(--text); }
+.security-badge { display: inline-block; align-self: start; justify-self: start; padding: .2rem .6rem; border-radius: 999px; font-size: .72rem; font-weight: 800; white-space: nowrap; }
+.security-badge.is-ok { background: rgba(76,201,167,.14); color: var(--accent); }
+.security-badge.is-warning { background: rgba(217,164,65,.16); color: #d9a441; }
+.security-badge.is-critical { background: rgba(255,110,118,.16); color: #ff6e76; }
+@media (max-width: 620px) { .security-findings li { grid-template-columns: 1fr; gap: .4rem; } }
+.mfa-status { color: var(--muted); font-size: .8rem; }
+.mfa-status.is-on { color: var(--accent); font-weight: 700; }
+.mfa-setup { display: grid; gap: 1rem; max-width: 500px; margin-top: 1.5rem; }
+.mfa-setup h2 { margin: .5rem 0 0; font-size: 1.15rem; }
+.mfa-setup .auth-form { margin-top: 0; }
+.mfa-steps { display: grid; gap: 1rem; margin: 0; padding-left: 1.2rem; color: var(--muted); line-height: 1.6; }
+.mfa-steps strong { color: var(--text); }
+.mfa-qr { display: grid; width: max-content; margin: .75rem 0 .5rem; padding: 8px; border-radius: 12px; background: #ffffff; }
+.mfa-qr img { display: block; }
+.mfa-manual summary, .mfa-recovery summary { color: var(--accent); font-size: .85rem; font-weight: 700; cursor: pointer; }
+.mfa-manual p { margin: .5rem 0 .25rem; font-size: .82rem; }
+.mfa-manual code { display: inline-block; padding: .4rem .6rem; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: .9rem; letter-spacing: .06em; word-break: break-all; }
+.mfa-recovery { max-width: 500px; margin-top: 1.5rem; }
+.mfa-recovery .auth-form { margin-top: 1rem; }
+.mfa-hint { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.55; }
+.mfa-back { margin-top: 1.5rem; }
+.mfa-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin: 0; padding: .9rem; border: 1px solid var(--border); border-radius: 12px; list-style: none; }
+.mfa-codes code { font-size: 1rem; letter-spacing: .08em; }
+.mfa-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.mfa-confirm { display: flex; align-items: center; gap: .5rem; font-size: .9rem; }
 .auth-panel-small { border-left: 1px solid var(--border); background: rgba(255,255,255,.02); }
 .auth-panel-small h2 { margin: 0 0 1.5rem; font-size: clamp(1.7rem, 4vw, 2.6rem); letter-spacing: -.05em; }
 .demo-account { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; padding: .9rem; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.025); }

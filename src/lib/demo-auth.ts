@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { compare } from "bcryptjs";
 import { getPrismaClient } from "./prisma";
-import { createSession, dashboardPath, type SessionRole } from "./session";
+import { clientIpHash, loginLocked, recordFailure } from "./security/events";
+import { generateTotpSecret } from "./security/totp";
+import { createSession, dashboardPath, startMfa, type SessionRole } from "./session";
+
+/** Compared against when the address is unknown, so a wrong address takes as long as a wrong password. */
+const UNKNOWN_USER_HASH = "$2b$12$4M6sRtbreMOPtFJ4O76d9.W43WY./BcKKZsCpgfXfA1u.Zs6BtDCa";
 
 const demoAccounts = {
   "admin@employ-mail.nl": {
@@ -25,29 +30,33 @@ export async function signInAction(formData: FormData) {
   const password = String(formData.get("password") ?? "");
 
   if (process.env.DATABASE_URL) {
+    const ipHash = await clientIpHash();
     let user;
+    let locked = false;
     try {
-      user = await getPrismaClient().user.findUnique({
+      locked = await loginLocked(email, ipHash);
+      user = locked ? null : await getPrismaClient().user.findUnique({
         where: { email },
         include: { tenant: true },
       });
     } catch {
       redirect("/login?error=invalid-credentials");
     }
+    if (locked) redirect("/login?error=locked");
 
-    if (user && await compare(password, user.passwordHash) && (user.role !== "CUSTOMER" || user.tenant?.status === "active")) {
-      const role: SessionRole = user.role === "SUPERADMIN" ? "superadmin" : user.role === "ADMIN" ? "admin" : "customer";
-      await createSession({
-        userId: user.id,
-        email: user.email,
-        role,
-        tenantId: user.tenantId ?? "platform",
-        name: user.name,
-      });
-      redirect(dashboardPath(role));
+    const passwordOk = await compare(password, user?.passwordHash ?? UNKNOWN_USER_HASH);
+    if (!user || !passwordOk || (user.role === "CUSTOMER" && user.tenant?.status !== "active")) {
+      await recordFailure("login_failed", { userId: user?.id, email, ipHash });
+      redirect("/login?error=invalid-credentials");
     }
 
-    redirect("/login?error=invalid-credentials");
+    // The password is right; the session only starts after the authenticator code (2FA is required for everyone).
+    if (user.totpEnabledAt && user.totpSecret) {
+      await startMfa({ userId: user.id });
+      redirect("/login/verificatie");
+    }
+    await startMfa({ userId: user.id, setupSecret: generateTotpSecret() });
+    redirect("/login/2fa-instellen");
   }
 
   if (process.env.NODE_ENV === "production") {

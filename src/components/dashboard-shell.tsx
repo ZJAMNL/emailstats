@@ -34,7 +34,7 @@ export async function DashboardShell({
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
     ...(role === "customer" && modules?.insight && canManage ? [{ href: "/dashboard/customer/inzicht", label: "Inzicht", icon: Gem }] : []),
     ...(role === "customer" && modules?.forecast && canManage ? [{ href: "/dashboard/customer/voorspellen", label: "Voorspellen en advies", icon: BrainCircuit }] : []),
-    ...(adminRole === "superadmin" ? [{ href: "/dashboard/admin/beheerders", label: "Beheerders", icon: UserCog }] : []),
+    ...(adminRole === "superadmin" ? [{ href: "/dashboard/admin/beheerders", label: "Beheerders", icon: UserCog }, { href: "/dashboard/admin/beveiliging", label: "Beveiliging", icon: ShieldCheck }] : []),
     ...(role === "customer" ? [{ href: "/dashboard/customer/uitleg", label: "Uitleg modellen", icon: BookOpen }] : []),
     // Settings come last for customers, after everything they read.
     ...(role === "customer" ? [{ href: "/dashboard/customer/data", label: "Beheer", icon: Database }] : []),

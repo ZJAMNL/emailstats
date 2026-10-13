@@ -47,7 +47,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       updatedAt: true,
       users: {
         where: { role: "CUSTOMER" },
-        select: { id: true, email: true, name: true, role: true, allWebshops: true, webshops: { select: { webshopId: true } }, createdAt: true, updatedAt: true },
+        select: { id: true, email: true, name: true, role: true, allWebshops: true, webshops: { select: { webshopId: true } }, createdAt: true, updatedAt: true, totpEnabledAt: true, lastLoginAt: true },
         orderBy: { createdAt: "asc" },
       },
       copernica: {
@@ -158,7 +158,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
 
       <section className="panel table-panel" id="gebruikers">
         <div className="panel-heading"><div><p className="eyebrow">Toegang</p><h2>Gebruikers van deze klant</h2></div><span className="tab">{tenant.users.length}</span></div>
-        <AdminUsers tenantId={tenant.id} users={tenant.users.map((user) => ({ id: user.id, name: user.name, email: user.email, allWebshops: user.allWebshops, webshopIds: user.webshops.map((link) => link.webshopId), createdAt: user.createdAt.toISOString() }))} webshops={webshops.map((webshop) => ({ id: webshop.id, name: webshop.name }))} />
+        <AdminUsers tenantId={tenant.id} users={tenant.users.map((user) => ({ id: user.id, name: user.name, email: user.email, allWebshops: user.allWebshops, webshopIds: user.webshops.map((link) => link.webshopId), createdAt: user.createdAt.toISOString(), mfaEnabledAt: user.totpEnabledAt?.toISOString() ?? null }))} webshops={webshops.map((webshop) => ({ id: webshop.id, name: webshop.name }))} />
       </section>
 
       <section className="panel table-panel">

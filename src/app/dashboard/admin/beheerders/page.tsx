@@ -1,5 +1,5 @@
-import { KeyRound, Trash2, UserPlus } from "lucide-react";
-import { createAdminAction, deleteAdminAction, sendAdminLoginLinkAction, updateAdminRoleAction } from "@/app/admin-user-actions";
+import { KeyRound, ShieldOff, Trash2, UserPlus } from "lucide-react";
+import { createAdminAction, deleteAdminAction, resetAdminTwoFactorAction, sendAdminLoginLinkAction, updateAdminRoleAction } from "@/app/admin-user-actions";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { requireSuperAdmin } from "@/lib/admin-access";
 import { getPrismaClient } from "@/lib/prisma";
@@ -14,6 +14,7 @@ const noticeText: Record<string, string> = {
   "admin-invited": "De beheerder is aangemaakt en heeft een e-mail ontvangen om een wachtwoord in te stellen.",
   "admin-updated": "De rol is bijgewerkt.",
   "admin-deleted": "De beheerder is verwijderd.",
+  "mfa-reset": "De tweestapsverificatie is gereset. Bij de volgende login wordt een nieuwe authenticator-app ingesteld.",
   "login-link-sent": "De beheerder heeft een e-mail ontvangen met een link om een wachtwoord in te stellen.",
 };
 
@@ -53,7 +54,7 @@ export default async function AdminUsersPage({ searchParams }: AdminsPageProps) 
         {admins.length ? (
           <div className="table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Naam</th><th>E-mailadres</th><th>Rol</th><th>Klanten</th><th><span className="sr-only">Acties</span></th></tr></thead>
+              <thead><tr><th>Naam</th><th>E-mailadres</th><th>Rol</th><th>Klanten</th><th>Tweestapsverificatie</th><th><span className="sr-only">Acties</span></th></tr></thead>
               <tbody>
                 {admins.map((admin) => {
                   const isSelf = admin.id === session.userId;
@@ -75,8 +76,19 @@ export default async function AdminUsersPage({ searchParams }: AdminsPageProps) 
                         )}
                       </td>
                       <td>{admin._count.ownedTenants.toLocaleString("nl-NL")}</td>
+                      <td>{admin.totpEnabledAt ? <span className="mfa-status is-on">Aan sinds {admin.totpEnabledAt.toLocaleDateString("nl-NL")}</span> : <span className="mfa-status">Wordt ingesteld bij volgende login</span>}</td>
                       <td>
                         <div className="admin-row-actions">
+                          {admin.totpEnabledAt ? (
+                            <details className="admin-delete">
+                              <summary aria-label={`Tweestapsverificatie van ${admin.name} resetten`} className="icon-button" title="Tweestapsverificatie resetten (telefoon kwijt)"><ShieldOff size={16} /></summary>
+                              <form action={resetAdminTwoFactorAction} className="admin-delete-form admin-form">
+                                <input name="userId" type="hidden" value={admin.id} />
+                                <p className="mfa-hint">{isSelf ? "Je wordt uitgelogd en stelt bij de volgende login een nieuwe authenticator-app in." : `${admin.name} wordt uitgelogd en stelt bij de volgende login een nieuwe authenticator-app in.`}</p>
+                                <button className="button button-danger" type="submit"><ShieldOff size={15} /> 2FA resetten</button>
+                              </form>
+                            </details>
+                          ) : null}
                           <form action={sendAdminLoginLinkAction}>
                             <input name="userId" type="hidden" value={admin.id} />
                             <button aria-label={`Inloglink mailen naar ${admin.name}`} className="icon-button" title="Inloglink mailen" type="submit"><KeyRound size={16} /></button>
@@ -129,7 +141,7 @@ export default async function AdminUsersPage({ searchParams }: AdminsPageProps) 
 function loadAdmins() {
   return getPrismaClient().user.findMany({
     where: { role: { in: ["ADMIN", "SUPERADMIN"] } },
-    select: { id: true, name: true, email: true, role: true, _count: { select: { ownedTenants: true } } },
+    select: { id: true, name: true, email: true, role: true, totpEnabledAt: true, _count: { select: { ownedTenants: true } } },
     orderBy: [{ role: "asc" }, { name: "asc" }],
   });
 }

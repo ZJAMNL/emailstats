@@ -1,10 +1,10 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { KeyRound, Pencil, Trash2, UserPlus, X } from "lucide-react";
-import { createTenantUserAction, deleteTenantUserAction, sendUserLoginLinkAction, updateTenantUserAction } from "@/app/webshop-actions";
+import { KeyRound, Pencil, ShieldOff, Trash2, UserPlus, X } from "lucide-react";
+import { createTenantUserAction, deleteTenantUserAction, resetUserTwoFactorAction, sendUserLoginLinkAction, updateTenantUserAction } from "@/app/webshop-actions";
 
-type TenantUser = { id: string; name: string; email: string; allWebshops: boolean; webshopIds: string[]; createdAt: string };
+type TenantUser = { id: string; name: string; email: string; allWebshops: boolean; webshopIds: string[]; createdAt: string; mfaEnabledAt: string | null };
 type Draft = { id?: string; name: string; email: string; allWebshops: boolean; webshopIds: string[]; sendInvite: boolean };
 
 export function AdminUsers({ tenantId, users, webshops }: { tenantId: string; users: TenantUser[]; webshops: { id: string; name: string }[] }) {
@@ -14,6 +14,7 @@ export function AdminUsers({ tenantId, users, webshops }: { tenantId: string; us
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const webshopName = new Map(webshops.map((webshop) => [webshop.id, webshop.name]));
 
@@ -31,6 +32,7 @@ export function AdminUsers({ tenantId, users, webshops }: { tenantId: string; us
       }
       if (inDialog) dialogRef.current?.close();
       setConfirmDelete(null);
+      setConfirmReset(null);
       if (success) setMessage({ tone: "success", text: success });
     });
   }
@@ -54,15 +56,19 @@ export function AdminUsers({ tenantId, users, webshops }: { tenantId: string; us
       {message ? <p className={message.tone === "success" ? "form-success" : "form-error"} role={message.tone === "success" ? "status" : "alert"}>{message.text}</p> : null}
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Gebruiker</th><th>Toegang</th><th>Toegevoegd</th><th /></tr></thead>
+          <thead><tr><th>Gebruiker</th><th>Toegang</th><th>Tweestapsverificatie</th><th>Toegevoegd</th><th /></tr></thead>
           <tbody>
             {users.map((user, index) => (
               <tr key={user.id}>
                 <td><strong>{user.name}</strong><small className="admin-user-email">{user.email}{index === 0 ? " · hoofdgebruiker" : ""}</small></td>
                 <td>{access(user)}</td>
+                <td>{user.mfaEnabledAt ? <span className="mfa-status is-on">Aan sinds {new Date(user.mfaEnabledAt).toLocaleDateString("nl-NL")}</span> : <span className="mfa-status">Wordt ingesteld bij volgende login</span>}</td>
                 <td>{new Date(user.createdAt).toLocaleDateString("nl-NL")}</td>
                 <td className="admin-user-actions">
                   <button aria-label={`${user.name} wijzigen`} className="icon-button" onClick={() => open(user)} type="button"><Pencil size={15} /></button>
+                  {user.mfaEnabledAt ? confirmReset === user.id
+                    ? <><button className="button button-danger" disabled={busy !== null} onClick={() => run(`mfa-${user.id}`, () => resetUserTwoFactorAction(tenantId, user.id), `De tweestapsverificatie van ${user.email} is gereset. Bij de volgende login stelt deze gebruiker een nieuwe app in.`)} type="button">2FA resetten</button><button className="button button-secondary" onClick={() => setConfirmReset(null)} type="button">Annuleren</button></>
+                    : <button aria-label={`Tweestapsverificatie van ${user.email} resetten`} className="icon-button" onClick={() => setConfirmReset(user.id)} title="Tweestapsverificatie resetten (telefoon kwijt)" type="button"><ShieldOff size={15} /></button> : null}
                   <button aria-label={`Inloglink mailen naar ${user.email}`} className="icon-button" disabled={busy !== null} onClick={() => run(`link-${user.id}`, () => sendUserLoginLinkAction(tenantId, user.id), `Inloglink verstuurd naar ${user.email}.`)} type="button"><KeyRound size={15} /></button>
                   {users.length > 1 ? confirmDelete === user.id
                     ? <><button className="button button-danger" disabled={busy !== null} onClick={() => run(`delete-${user.id}`, () => deleteTenantUserAction(tenantId, user.id), `${user.email} is verwijderd.`)} type="button">Verwijderen</button><button className="button button-secondary" onClick={() => setConfirmDelete(null)} type="button">Annuleren</button></>

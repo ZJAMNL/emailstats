@@ -14,6 +14,7 @@ import { sendDemoRequest } from "@/lib/demo-request";
 import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
 import { requireTenantManager } from "@/lib/webshops";
 import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
+import { clientIpHash, recordSecurityEvent, resetLimited } from "@/lib/security/events";
 import { saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
@@ -190,7 +191,9 @@ export async function requestPasswordResetAction(formData: FormData) {
   if (email.includes("@") && process.env.DATABASE_URL) {
     try {
       const user = await getPrismaClient().user.findUnique({ where: { email }, include: { tenant: true } });
-      if (user && (user.role !== "CUSTOMER" || user.tenant?.status === "active")) {
+      // At most a few mails per hour per address, so the form cannot be used to flood someone's inbox.
+      if (user && (user.role !== "CUSTOMER" || user.tenant?.status === "active") && !(await resetLimited(email))) {
+        await recordSecurityEvent("password_reset_requested", { userId: user.id, email, ipHash: await clientIpHash() });
         await sendPasswordMail(user, "reset", await getAppUrl());
       }
     } catch {
@@ -242,7 +245,9 @@ export async function setPasswordAction(formData: FormData) {
   const user = await verifyPasswordToken(token);
   if (!user) redirect("/wachtwoord-instellen?error=invalid-token");
 
-  await getPrismaClient().user.update({ where: { id: user.id }, data: { passwordHash: await hash(password, 12) } });
+  // A new password signs out every existing session, on every device.
+  await getPrismaClient().user.update({ where: { id: user.id }, data: { passwordHash: await hash(password, 12), sessionVersion: { increment: 1 } } });
+  await recordSecurityEvent("password_set", { userId: user.id, email: user.email, ipHash: await clientIpHash() });
   redirect("/login?notice=password-set");
 }
 

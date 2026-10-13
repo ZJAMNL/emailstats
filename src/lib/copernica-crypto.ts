@@ -17,6 +17,10 @@ export function decryptCopernicaToken(encrypted: string) {
   return Buffer.concat([decipher.update(Buffer.from(ciphertextHex, "hex")), decipher.final()]).toString("utf8");
 }
 
+/** The same AES-256-GCM encryption for other secrets kept in the database, such as authenticator-app secrets. */
+export const encryptSecret = encryptCopernicaToken;
+export const decryptSecret = decryptCopernicaToken;
+
 function getEncryptionKey() {
   const configuredKey = process.env.COPERNICA_TOKEN_ENCRYPTION_KEY;
   if (!configuredKey || !/^[a-f0-9]{64}$/i.test(configuredKey)) {
