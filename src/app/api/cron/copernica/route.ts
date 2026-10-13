@@ -7,8 +7,9 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /**
- * Nightly, in several short runs: sync the customers whose data is oldest first and stop before the time
- * limit, so a customer that did not fit goes first in the next run instead of being skipped every night.
+ * Nightly, in three runs (separate daily cron jobs, as the Hobby plan allows one run per job per day): sync the
+ * customers whose data is oldest first and stop before the time limit, so a customer that did not fit goes first
+ * in the next run instead of being skipped every night.
  */
 export async function GET(request: NextRequest) {
   if (!isAuthorizedCron(request)) {

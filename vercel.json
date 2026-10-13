@@ -1,8 +1,16 @@
 {
   "crons": [
     {
-      "path": "/api/cron/copernica",
-      "schedule": "17,47 2-4 * * *"
+      "path": "/api/cron/copernica?run=1",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/copernica?run=2",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/copernica?run=3",
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/rfm",
