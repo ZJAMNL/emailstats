@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { getPrismaClient } from "@/lib/prisma";
 import { runPredictions } from "@/lib/predict/run";
+import { measureJob } from "@/lib/costs/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Oldest run first, so a customer skipped for lack of time goes first tomorrow.
     if (Date.now() > deadline - 90_000) break;
     try {
-      await runPredictions(tenantId);
+      await measureJob(tenantId, "predictions", () => runPredictions(tenantId));
       results.push({ tenantId, calculated: true });
     } catch {
       // The error is stored on the config by runPredictions; continue with the next customer.

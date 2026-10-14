@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, BookOpen, BrainCircuit, Database, Gem, LayoutDashboard, LogOut, Mail, ShieldCheck, UserCog, Users } from "lucide-react";
+import { BarChart3, BookOpen, BrainCircuit, Database, Euro, Gem, LayoutDashboard, LogOut, Mail, ShieldCheck, UserCog, Users } from "lucide-react";
 import { signOutAction, stopImpersonationAction } from "@/app/actions";
 import { requireAdmin } from "@/lib/admin-access";
 import { getSession } from "@/lib/session";
@@ -34,6 +34,7 @@ export async function DashboardShell({
     { href: role === "admin" ? "/dashboard/admin/campaigns" : "/dashboard/customer/campaigns", label: "Campagnes", icon: Mail },
     ...(role === "customer" && modules?.insight && canManage ? [{ href: "/dashboard/customer/inzicht", label: "Inzicht", icon: Gem }] : []),
     ...(role === "customer" && modules?.forecast && canManage ? [{ href: "/dashboard/customer/voorspellen", label: "Voorspellen en advies", icon: BrainCircuit }] : []),
+    ...(role === "admin" ? [{ href: "/dashboard/admin/kosten", label: "Kosten en prijzen", icon: Euro }] : []),
     ...(adminRole === "superadmin" ? [{ href: "/dashboard/admin/beheerders", label: "Beheerders", icon: UserCog }, { href: "/dashboard/admin/beveiliging", label: "Beveiliging", icon: ShieldCheck }] : []),
     ...(role === "customer" ? [{ href: "/dashboard/customer/uitleg", label: "Uitleg modellen", icon: BookOpen }] : []),
     // Settings come last for customers, after everything they read.

@@ -910,6 +910,50 @@ td { color: #dfe9f5; }
 
 .selection-compare-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .75rem; margin-top: 1.25rem; }
 .selection-compare-bar p { margin: 0; color: var(--muted); font-size: .8rem; }
+/* Cost dashboard. Series colours validated for light and dark (categorical slots 1–3); identity is never
+   colour alone: legend plus the table with every number. */
+:root { --cost-usage: #3987e5; --cost-fixed: #d95926; --cost-support: #199e70; }
+:root[data-theme="light"] { --cost-usage: #2a78d6; --cost-fixed: #eb6834; --cost-support: #1baf7a; }
+.cost-chart ul { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.cost-chart li { display: grid; grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) 9.5rem; align-items: center; gap: .8rem; }
+.cost-chart-name { overflow: hidden; font-size: .85rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.cost-chart-track { position: relative; display: flex; gap: 2px; height: 14px; }
+.cost-chart-segment { height: 100%; }
+.cost-chart-segment:first-child { border-radius: 4px 0 0 4px; }
+.cost-chart-segment:last-of-type { border-radius: 0 4px 4px 0; }
+.cost-chart-segment:only-of-type { border-radius: 4px; }
+.cost-chart .is-usage { background: var(--cost-usage); }
+.cost-chart .is-fixed { background: var(--cost-fixed); }
+.cost-chart .is-support { background: var(--cost-support); }
+.cost-chart-price { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.cost-chart-value { font-size: .82rem; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.cost-chart-value small { color: var(--muted); font-weight: 600; }
+.cost-legend { display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin-bottom: 1rem; color: var(--muted); font-size: .8rem; }
+.cost-legend i { display: inline-block; width: 12px; height: 12px; margin-right: .3rem; vertical-align: -1px; border-radius: 3px; }
+.cost-legend i.is-price { width: 2px; height: 14px; border-radius: 1px; background: var(--text); }
+.cost-table td { vertical-align: top; }
+.cost-table tbody.is-inactive { opacity: .55; }
+.cost-table tbody + tbody { border-top: 1px solid var(--border); }
+.cost-table .cost-signal-row td { padding-top: 0; border-top: 0; }
+.cost-table tr:has(+ .cost-signal-row) td { border-bottom: 0; }
+.cost-sub, .cost-owner { display: block; color: var(--muted); font-size: .72rem; font-weight: 500; }
+.cost-signals { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin: 0; padding: 0; list-style: none; font-size: .78rem; line-height: 1.4; }
+.cost-signals span { display: inline-block; margin-right: .25rem; padding: .05rem .4rem; border-radius: 999px; font-size: .68rem; font-weight: 800; }
+.cost-signals .is-critical span { background: rgba(255,110,118,.16); color: #ff6e76; }
+.cost-signals .is-warning span { background: rgba(217,164,65,.16); color: #d9a441; }
+.cost-signals .is-opportunity span { background: rgba(76,201,167,.14); color: var(--accent); }
+.cost-signals .is-info span { background: rgba(148,163,184,.16); color: var(--muted); }
+.cost-explain { display: grid; gap: .5rem; margin: 0 0 1.25rem; padding-left: 1.1rem; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+.cost-explain strong { color: var(--text); }
+.cost-settings { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; align-items: start; }
+.cost-settings fieldset { display: grid; gap: .55rem; margin: 0; padding: .9rem; border: 1px solid var(--border); border-radius: 12px; }
+.cost-settings legend { padding: 0 .3rem; font-weight: 700; }
+.cost-settings label { display: grid; gap: .25rem; color: var(--muted); font-size: .8rem; font-weight: 700; }
+.cost-settings input { min-height: 38px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 9px; background: rgba(255,255,255,.03); color: var(--text); font: inherit; }
+.cost-settings small { color: var(--muted); font-size: .75rem; }
+.cost-settings .button { grid-column: 1 / -1; justify-self: start; }
+.cost-fixed-row { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem; gap: .4rem; }
+@media (max-width: 620px) { .cost-chart li { grid-template-columns: minmax(0, 1fr) auto; } .cost-chart-track { grid-column: 1 / -1; grid-row: 2; } }
 .outcome-filter { flex-wrap: wrap; }
 .summary-section-summary .outcome-filter { margin-bottom: .75rem; }
 .outcome-kpis { margin: .5rem 0 1.25rem; }

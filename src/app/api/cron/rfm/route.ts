@@ -3,6 +3,7 @@ import { isAuthorizedCron } from "@/lib/cron-auth";
 import { getPrismaClient } from "@/lib/prisma";
 import { runRfm } from "@/lib/rfm/run";
 import { writeRfmToCopernica } from "@/lib/rfm/writeback";
+import { measureJob } from "@/lib/costs/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -23,10 +24,10 @@ export async function GET(request: NextRequest) {
     if (Date.now() > deadline - 60_000) break;
     const result: (typeof results)[number] = { tenantId: config.tenantId, calculated: false };
     try {
-      await runRfm(config.tenantId);
+      await measureJob(config.tenantId, "rfm", () => runRfm(config.tenantId));
       result.calculated = true;
       if (config.writeBackEnabled) {
-        const summary = await writeRfmToCopernica(config.tenantId, deadline);
+        const summary = await measureJob(config.tenantId, "rfm", () => writeRfmToCopernica(config.tenantId, deadline));
         result.written = summary.updated + summary.cleared;
         result.remaining = summary.remaining;
       }

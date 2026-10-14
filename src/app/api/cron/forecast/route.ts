@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { writeForecastOrders } from "@/lib/predict/orders-writer";
 import { getPrismaClient } from "@/lib/prisma";
+import { measureJob } from "@/lib/costs/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   for (const { tenantId } of configs) {
     if (Date.now() > deadline - 30_000) break;
     try {
-      const summary = await writeForecastOrders(tenantId, deadline);
+      const summary = await measureJob(tenantId, "forecast-write", () => writeForecastOrders(tenantId, deadline));
       results.push({ tenantId, written: summary.created + summary.updated + summary.deleted, remaining: summary.remaining });
     } catch (error) {
       results.push({ tenantId, error: error instanceof Error ? error.message.slice(0, 200) : "Onbekende fout" });

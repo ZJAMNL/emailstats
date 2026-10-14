@@ -3,6 +3,7 @@ import { runAlertsForTenant, type AlertRunResult } from "@/lib/alerts/run";
 import { getAppUrl } from "@/lib/app-url";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { getPrismaClient } from "@/lib/prisma";
+import { measureJob } from "@/lib/costs/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   const results: AlertRunResult[] = [];
   for (const { tenantId } of tenants) {
     try {
-      results.push(await runAlertsForTenant(tenantId, now, appUrl));
+      results.push(await measureJob(tenantId, "alerts", () => runAlertsForTenant(tenantId, now, appUrl)));
     } catch (error) {
       results.push({ tenantId, status: "failed", alerts: 0, error: error instanceof Error ? error.message.slice(0, 200) : "Onbekende fout" });
     }

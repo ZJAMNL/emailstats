@@ -424,3 +424,29 @@ model PredictionOutcome {
   @@index([tenantId, status])
   @@index([tenantId, predictedAt])
 }
+
+/**
+ * How long a nightly job ran for a customer: the basis for the compute costs per customer.
+ */
+model JobRun {
+  id         String   @id @default(cuid())
+  /// Null for platform-wide jobs (security test).
+  tenantId   String?
+  /// copernica-sync, rfm, predictions, forecast-write, alerts
+  job        String
+  startedAt  DateTime @default(now())
+  durationMs Int
+  ok         Boolean  @default(true)
+
+  @@index([tenantId, startedAt])
+  @@index([startedAt])
+}
+
+/**
+ * Platform-wide settings kept as JSON, such as the cost assumptions of the cost dashboard.
+ */
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

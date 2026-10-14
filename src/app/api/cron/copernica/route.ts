@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 import { getPrismaClient } from "@/lib/prisma";
 import { syncTenantCopernicaData } from "@/lib/copernica";
+import { measureJob } from "@/lib/costs/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
     if (Date.now() > deadline - 60_000) break;
     const started = Date.now();
     try {
-      await syncTenantCopernicaData(tenantId);
+      await measureJob(tenantId, "copernica-sync", () => syncTenantCopernicaData(tenantId));
       results.push({ tenantId, ok: true, seconds: Math.round((Date.now() - started) / 1000) });
     } catch {
       results.push({ tenantId, ok: false, seconds: Math.round((Date.now() - started) / 1000) });
