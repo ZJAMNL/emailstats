@@ -42,31 +42,32 @@ model User {
 }
 
 model Tenant {
-  id               String               @id @default(cuid())
-  name             String
-  slug             String               @unique
-  logoDataUrl      String?              @db.Text
-  status           String               @default("active")
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  settings         Json                 @default("{}")
+  id                 String               @id @default(cuid())
+  name               String
+  slug               String               @unique
+  logoDataUrl        String?              @db.Text
+  status             String               @default("active")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  settings           Json                 @default("{}")
   /// The beheerder responsible for this customer. Without one, only superbeheerders see it.
-  ownerId          String?
-  owner            User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  users            User[]               @relation("TenantUsers")
-  campaigns        Campaign[]
-  copernica        CopernicaConnection?
-  selections       CopernicaSelection[]
-  rfmConfig        RfmConfig?
-  rfmScores        RfmProfileScore[]
-  rfmSnapshots     RfmSegmentSnapshot[]
-  webshops         Webshop[]
-  rfmWrites        RfmWriteBack[]
-  alertSettings    AlertSettings?
-  alertEvents      AlertEvent[]
-  predictionConfig PredictionConfig?
-  predictions      ProfilePrediction[]
-  insightWrites    InsightWriteBack[]
+  ownerId            String?
+  owner              User?                @relation("TenantOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  users              User[]               @relation("TenantUsers")
+  campaigns          Campaign[]
+  copernica          CopernicaConnection?
+  selections         CopernicaSelection[]
+  rfmConfig          RfmConfig?
+  rfmScores          RfmProfileScore[]
+  rfmSnapshots       RfmSegmentSnapshot[]
+  webshops           Webshop[]
+  rfmWrites          RfmWriteBack[]
+  alertSettings      AlertSettings?
+  alertEvents        AlertEvent[]
+  predictionConfig   PredictionConfig?
+  predictions        ProfilePrediction[]
+  insightWrites      InsightWriteBack[]
+  predictionOutcomes PredictionOutcome[]
 
   @@index([ownerId])
 }
@@ -387,4 +388,39 @@ model SecurityScan {
   trigger   String   @default("cron")
 
   @@index([ranAt])
+}
+
+/**
+ * A predicted order as it was made, kept to check later whether it came true. A profile gets a new one
+ * only after its previous prediction was judged, so the goalposts never move.
+ */
+model PredictionOutcome {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  copernicaProfileId String
+  predictedAt        DateTime
+  /// 1 to 3: the position among the profile's expected orders.
+  rank               Int
+  expectedAt         DateTime
+  productId          String?
+  productName        String?
+  category           String?
+  /// herhaalaankoop, aanbeveling or categorie
+  source             String
+  orderChance        Float?
+  /// Whether this prediction was in the records written to Copernica.
+  sentToCopernica    Boolean   @default(false)
+  /// The most popular product at the time: what a naive guess would have been.
+  baselineProductId  String?
+  /// open, op_tijd, andere_timing or geen_bestelling
+  status             String    @default("open")
+  orderedAt          DateTime?
+  productHit         Boolean?
+  categoryHit        Boolean?
+  baselineHit        Boolean?
+  resolvedAt         DateTime?
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, predictedAt])
 }

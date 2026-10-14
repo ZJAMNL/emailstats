@@ -6,12 +6,14 @@ import { ForecastView } from "@/components/forecast-view";
 import { ForecastWriteBack } from "@/components/forecast-writeback";
 import { PredictRunControls } from "@/components/predict-controls";
 import { PredictReport } from "@/components/predict-report";
+import { PredictionOutcomes } from "@/components/prediction-outcomes";
 import { PredictSetup } from "@/components/predict-setup";
 import { ShowMore } from "@/components/show-more";
 import { requireTenantAdmin } from "@/lib/admin-access";
 import { furtherPredictions } from "@/lib/predict/advice";
 import { loadForecastOverview } from "@/lib/predict/advice-data";
 import type { ForecastWriteSummary } from "@/lib/predict/orders-writer";
+import { loadOutcomeReport } from "@/lib/predict/outcomes";
 import { getPrismaClient } from "@/lib/prisma";
 import { readTenantDashboardModules } from "@/lib/tenant-settings";
 
@@ -19,15 +21,16 @@ export const dynamic = "force-dynamic";
 // Calculations fetch every order line and web event from Copernica and can take a while.
 export const maxDuration = 300;
 
-export default async function AdminClientForecast({ params }: { params: Promise<{ tenantId: string }> }) {
+export default async function AdminClientForecast({ params, searchParams }: { params: Promise<{ tenantId: string }>; searchParams: Promise<{ alleen?: string }> }) {
   const { tenantId } = await params;
+  const sentOnly = (await searchParams).alleen === "copernica";
   if (!process.env.DATABASE_URL) notFound();
   await requireTenantAdmin(tenantId);
 
   const tenant = await getPrismaClient().tenant.findUnique({ where: { id: tenantId }, select: { id: true, name: true, settings: true, copernica: { select: { databaseId: true } }, rfmConfig: { select: { collectionId: true, collectionName: true } }, predictionConfig: true } });
   if (!tenant) notFound();
   const config = tenant.predictionConfig;
-  const overview = await loadForecastOverview(tenantId);
+  const [overview, outcomes] = await Promise.all([loadForecastOverview(tenantId), loadOutcomeReport(tenantId, { sentOnly })]);
   const visible = readTenantDashboardModules(tenant.settings).forecast;
   const initial = config ? {
     lineCollectionId: config.lineCollectionId, lineCollectionName: config.lineCollectionName, lineOrderField: config.lineOrderField, orderKeyField: config.orderKeyField,
@@ -49,6 +52,7 @@ export default async function AdminClientForecast({ params }: { params: Promise<
       {overview && report ? <>
         <p className="rfm-meta">Laatst berekend op {new Date(report.ranAt).toLocaleString("nl-NL")} · {visible ? "zichtbaar voor de klant" : "nog niet zichtbaar voor de klant (zet ‘Voorspellen en advies’ aan bij de klant)"}</p>
         <ForecastView overview={overview} />
+        <PredictionOutcomes hrefs={{ all: `/dashboard/admin/clients/${tenant.id}/voorspellen`, sent: `/dashboard/admin/clients/${tenant.id}/voorspellen?alleen=copernica` }} report={outcomes} sentOnly={sentOnly} />
 
         <section className="panel table-panel" id="copernica">
           <div className="panel-heading"><div><p className="eyebrow">Copernica</p><h2>Verwachte bestellingen naar Copernica</h2></div></div>
