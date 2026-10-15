@@ -1,48 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isAuthorizedCron } from "@/lib/cron-auth";
-import { getPrismaClient } from "@/lib/prisma";
-import { syncTenantCopernicaData } from "@/lib/copernica";
-import { measureJob } from "@/lib/costs/usage";
+import { enqueueNightlyJobs, kickWorker, pruneJobs } from "@/lib/jobs/queue";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
+
+/** Parallel worker chains at night: enough to finish in time, few enough to spare Copernica and the database. */
+const CHAINS = 2;
 
 /**
- * Nightly, in three runs (separate daily cron jobs, as the Hobby plan allows one run per job per day): sync the
- * customers whose data is oldest first and stop before the time limit, so a customer that did not fit goes first
- * in the next run instead of being skipped every night.
+ * Nightly (several cron jobs, as the Hobby plan allows one run per job per day): give every customer one
+ * job (sync, cached data, RFM, predictions, write-back) and start the workers. Each customer runs on its
+ * own, so a large customer can no longer push out or take down the others.
  */
 export async function GET(request: NextRequest) {
-  if (!isAuthorizedCron(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!isAuthorizedCron(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
 
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "Database is not configured" }, { status: 503 });
-  }
-
-  const deadline = Date.now() + 240_000;
-  // Counts are stored per day: a customer synced since midnight (UTC) has today's measurement already.
-  const freshSince = new Date();
-  freshSince.setUTCHours(0, 0, 0, 0);
-  const connections = await getPrismaClient().copernicaConnection.findMany({
-    where: { OR: [{ lastSyncedAt: null }, { lastSyncedAt: { lt: freshSince } }] },
-    select: { tenantId: true },
-    orderBy: { lastSyncedAt: { sort: "asc", nulls: "first" } },
-  });
-  const results: Array<{ tenantId: string; ok: boolean; seconds: number }> = [];
-
-  for (const { tenantId } of connections) {
-    // Leave room for one more customer; the rest follow in the next run.
-    if (Date.now() > deadline - 60_000) break;
-    const started = Date.now();
-    try {
-      await measureJob(tenantId, "copernica-sync", () => syncTenantCopernicaData(tenantId));
-      results.push({ tenantId, ok: true, seconds: Math.round((Date.now() - started) / 1000) });
-    } catch {
-      results.push({ tenantId, ok: false, seconds: Math.round((Date.now() - started) / 1000) });
-    }
-  }
-
-  return NextResponse.json({ synced: results.filter((result) => result.ok).length, failed: results.filter((result) => !result.ok).length, remaining: connections.length - results.length, results });
+  const created = await enqueueNightlyJobs();
+  await pruneJobs();
+  await Promise.all(Array.from({ length: CHAINS }, () => kickWorker()));
+  return NextResponse.json({ created });
 }

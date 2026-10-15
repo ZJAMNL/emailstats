@@ -128,7 +128,7 @@ export function RfmSetup({ tenantId, initial }: { tenantId: string; initial: Rfm
 
           <div className="rfm-row">
             <button className="button button-secondary" disabled={!ready || busy !== null} onClick={() => run("preview", () => rfmPreviewAction(tenantId, settings), setPreview)} type="button"><Calculator size={15} /> {busy === "preview" ? "Berekenen… (kan even duren)" : "Proefberekening"}</button>
-            <button className="button button-primary" disabled={!ready || busy !== null} onClick={() => run("save", () => rfmSaveAction(tenantId, settings), () => setSaved(true))} type="button"><Save size={15} /> {busy === "save" ? "Opslaan en berekenen…" : "Opslaan en berekenen"}</button>
+            <button className="button button-primary" disabled={!ready || busy !== null} onClick={() => run("save", () => rfmSaveAction(tenantId, settings), () => setSaved(true))} type="button"><Save size={15} /> {busy === "save" ? "Opslaan…" : "Opslaan en berekenen"}</button>
           </div>
           <small className="rfm-hint">De proefberekening haalt alle orders op en slaat niets op. Bij grote databases kan dat een minuut duren.</small>
         </li>
@@ -136,6 +136,7 @@ export function RfmSetup({ tenantId, initial }: { tenantId: string; initial: Rfm
 
       {preview ? <section className="rfm-preview" aria-label="Resultaat van de proefberekening">
         <h3>Proefberekening</h3>
+        {preview.sample ? <p className="rfm-hint">Snelle proef op de nieuwste {preview.sample.used.toLocaleString("nl-NL")} van {preview.sample.total.toLocaleString("nl-NL")} orders. Na opslaan rekent het model op alle orders, als achtergrondtaak.</p> : null}
         <RfmQuality summary={preview} />
         <RfmKpis summary={preview} />
         <div className="rfm-preview-grid"><RfmHeatmap grid={preview.grid} /></div>

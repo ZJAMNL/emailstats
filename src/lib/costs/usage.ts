@@ -1,6 +1,6 @@
 import { getPrismaClient } from "../prisma";
 
-export type JobName = "copernica-sync" | "rfm" | "predictions" | "forecast-write" | "alerts";
+export type JobName = "copernica-sync" | "ingest" | "rfm" | "rfm-write" | "predictions" | "forecast-write" | "alerts";
 
 /** Runs a job for a customer and records how long it took (also when it fails), for the cost dashboard. */
 export async function measureJob<T>(tenantId: string | null, job: JobName, task: () => Promise<T>): Promise<T> {

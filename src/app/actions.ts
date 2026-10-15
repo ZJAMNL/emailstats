@@ -6,7 +6,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
 import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
-import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, refreshTenantSelections, syncTenantCopernicaData } from "@/lib/copernica";
+import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, refreshTenantSelections } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { adminForTenant, requireAdmin, type AdminSession } from "@/lib/admin-access";
 import { createSession, requireRole, requireSession } from "@/lib/session";
@@ -15,6 +15,7 @@ import { sendPasswordMail, verifyPasswordToken } from "@/lib/password-reset";
 import { requireTenantManager } from "@/lib/webshops";
 import { importSelectionHistory, previewSelectionHistory } from "@/lib/selection-history";
 import { clientIpHash, recordSecurityEvent, resetLimited } from "@/lib/security/events";
+import { startJob } from "@/lib/jobs/start";
 import { saveSelectionGroups, saveSelectionWidget, saveSelectionWidgetOrder, saveTenantDashboardModules, type SelectionGroup } from "@/lib/tenant-settings";
 
 export async function signInAction(formData: FormData) {
@@ -409,18 +410,23 @@ export async function reorderSelectionWidgetsAction(order: string[]) {
   await saveSelectionWidgetOrder(session.tenantId, order);
 }
 
+/** Beheerder: run the whole nightly job for this customer now, in the background. */
+export async function runTenantJobAction(formData: FormData) {
+  const tenantId = readField(formData, "tenantId");
+  const admin = await adminForTenant(tenantId);
+  if (!admin) redirect("/dashboard/admin/clients");
+  const started = await startJob(tenantId, ["sync", "ingest", "rfm", "rfm-write", "predictions", "forecast-write"], admin.name);
+  redirect(`/dashboard/admin/clients/${encodeURIComponent(tenantId)}?notice=${started.queued ? "job-started" : "job-running"}`);
+}
+
 export async function syncCopernicaNowAction() {
   const session = await requireSession();
   if (session.role !== "customer") redirect("/login");
   if (!(await requireTenantManager(session))) redirect("/dashboard/customer/data?error=not-allowed");
 
-  try {
-    await syncTenantCopernicaData(session.tenantId);
-  } catch {
-    redirect("/dashboard/customer/data?error=sync-failed");
-  }
-
-  redirect("/dashboard/customer/data?notice=synced");
+  // A large database takes minutes: the sync runs as a background job and the page shows its progress.
+  const started = await startJob(session.tenantId, ["sync"], session.name);
+  redirect(`/dashboard/customer/data?notice=${started.queued ? "sync-started" : "sync-running"}`);
 }
 
 export async function syncCampaignsAction(formData: FormData) {
@@ -434,13 +440,8 @@ export async function syncCampaignsAction(formData: FormData) {
   // Syncing writes tenant-wide data; users limited to some webshops only filter what is already there.
   if (!(await requireTenantManager(session))) redirect(`/dashboard/customer/campaigns?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
 
-  try {
-    await syncTenantCopernicaData(session.tenantId, { from, to });
-  } catch {
-    redirect("/dashboard/customer/campaigns?error=sync-failed");
-  }
-
-  redirect(`/dashboard/customer/campaigns?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&notice=synced`);
+  const started = await startJob(session.tenantId, ["sync"], session.name, { range: { from, to } });
+  redirect(`/dashboard/customer/campaigns?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&notice=${started.queued ? "sync-started" : "sync-running"}`);
 }
 
 function readField(formData: FormData, key: string) {

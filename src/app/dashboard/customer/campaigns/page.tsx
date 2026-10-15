@@ -34,7 +34,8 @@ export default async function CustomerCampaigns({ searchParams }: CampaignPagePr
 
   return (
     <DashboardShell role="customer" title="Campagnes" subtitle="Bekijk Copernica-mailingresultaten binnen een gekozen periode.">
-      {params.notice === "synced" ? <p className="form-success" role="status">Campagnes voor deze periode zijn bijgewerkt.</p> : null}
+      {params.notice === "sync-started" ? <p className="form-success" role="status">De campagnes voor deze periode worden op de achtergrond bijgewerkt. Over een paar minuten staan ze hier; herlaad dan de pagina.</p> : null}
+      {params.notice === "sync-running" ? <p className="form-success" role="status">Er loopt al een synchronisatie voor je account. Zodra die klaar is, staan de gegevens hier.</p> : null}
       {params.error === "sync-failed" ? <p className="form-error" role="alert">Synchroniseren is niet gelukt. Controleer eerst de Copernica-koppeling.</p> : null}
       {params.error === "invalid-date" ? <p className="form-error" role="alert">Kies een geldige start- en einddatum.</p> : null}
       {databaseUnavailable ? <p className="form-error" role="status">Campagnegegevens zijn nog niet beschikbaar: PostgreSQL moet eerst worden geconfigureerd en gemigreerd.</p> : null}

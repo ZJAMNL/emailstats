@@ -31,14 +31,17 @@ export async function sampleOrders(jwt: string, collectionId: string, limit = 5)
   return { total: Number(result.total ?? 0), rows: (result.data ?? []).map((row) => ({ profile: String(row.profile), fields: stringFields(row.fields) })) };
 }
 
-/** Fetches every order subprofile of a collection and maps it onto the configured fields. */
-export async function fetchAllOrders(jwt: string, collectionId: string, mapping: OrderFieldMapping) {
+/**
+ * Fetches the order subprofiles of a collection and maps them onto the configured fields. With
+ * `maxRows` only the newest orders up to that number (for a quick preview of a large database).
+ */
+export async function fetchAllOrders(jwt: string, collectionId: string, mapping: OrderFieldMapping, { maxRows }: { maxRows?: number } = {}) {
   const path = `collection/${encodeURIComponent(collectionId)}/subprofiles`;
-  const pageParams = (start: number) => new URLSearchParams({ start: String(start), limit: String(pageSize), total: "true" });
+  const pageParams = (start: number) => new URLSearchParams({ start: String(start), limit: String(pageSize), total: "true", ...(maxRows ? { orderby: "id", order: "desc" } : {}) });
   const first = await copernicaGet<CopernicaList<CopernicaSubprofile>>(jwt, path, pageParams(0));
   const total = Number(first.total ?? first.data?.length ?? 0);
   const starts: number[] = [];
-  for (let start = pageSize; start < total; start += pageSize) starts.push(start);
+  for (let start = pageSize; start < Math.min(total, maxRows ?? total); start += pageSize) starts.push(start);
 
   const pages = await mapInBatches(starts, pageConcurrency, (start) => copernicaGet<CopernicaList<CopernicaSubprofile>>(jwt, path, pageParams(start)));
   const rows = [first, ...pages].flatMap((page) => page.data ?? []);

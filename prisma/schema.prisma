@@ -68,6 +68,11 @@ model Tenant {
   predictions        ProfilePrediction[]
   insightWrites      InsightWriteBack[]
   predictionOutcomes PredictionOutcome[]
+  jobs               Job[]
+  dataCaches         DataCache[]
+  cachedOrders       CachedOrder[]
+  cachedLines        CachedLine[]
+  cachedEvents       CachedEvent[]
 
   @@index([ownerId])
 }
@@ -449,4 +454,108 @@ model PlatformSetting {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * A background job for one customer: a list of steps (sync, ingest, rfm, ...) run by the worker in slices
+ * that stay well within the function time limit, so a large customer never takes the platform down.
+ */
+model Job {
+  id          String    @id @default(cuid())
+  tenantId    String
+  /// nightly or manual
+  trigger     String
+  steps       String[]
+  stepIndex   Int       @default(0)
+  /// Where the current step stopped, so the next slice continues there.
+  cursor      Json?
+  /// Options for the steps, such as the date range of a campaign sync.
+  params      Json?
+  /// queued, running, done or failed
+  status      String    @default("queued")
+  progress    String?
+  /// Times a slice was cut off (time limit or memory); after three the job fails.
+  attempts    Int       @default(0)
+  error       String?
+  requestedBy String?
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  heartbeatAt DateTime?
+  finishedAt  DateTime?
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+/**
+ * What is cached of one Copernica collection (orders, order lines or web events) for a customer.
+ */
+model DataCache {
+  tenantId        String
+  /// orders, lines or events
+  kind            String
+  collectionId    String
+  /// The field mapping the cache was filled with; a different mapping means a full refresh.
+  mappingHash     String
+  /// Highest subprofile id seen, so the nightly run only fetches newer rows.
+  maxSubprofileId BigInt    @default(0)
+  rowCount        Int       @default(0)
+  /// Raised for every full refresh; rows of an older generation were removed in Copernica.
+  generation      Int       @default(0)
+  fullRefreshAt   DateTime?
+  incrementalAt   DateTime?
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, kind])
+}
+
+/**
+ * Orders from Copernica, mapped onto the RFM fields; kept so the models need not fetch everything again.
+ */
+model CachedOrder {
+  tenantId     String
+  subprofileId String
+  profileId    String
+  orderKey     String?
+  date         DateTime?
+  amount       Float?
+  status       String?
+  generation   Int
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, subprofileId])
+}
+
+model CachedLine {
+  tenantId     String
+  subprofileId String
+  profileId    String
+  orderKey     String
+  productId    String
+  productName  String?
+  category     String?
+  generation   Int
+  tenant       Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, subprofileId])
+}
+
+/**
+ * Web events of the last 120 days only.
+ */
+model CachedEvent {
+  tenantId     String
+  subprofileId String
+  profileId    String
+  date         DateTime
+  productId    String?
+  category     String?
+  eventType    String?
+  generation   Int
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, subprofileId])
+  @@index([tenantId, date])
 }

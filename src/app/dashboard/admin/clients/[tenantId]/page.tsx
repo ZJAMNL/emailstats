@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, BrainCircuit, Database, Eye, Gem, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BrainCircuit, Database, Eye, Gem, KeyRound, Mail, RefreshCw, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
-import { impersonateCustomerAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
+import { impersonateCustomerAction, runTenantJobAction, sendLoginLinkAction, updateTenantDashboardModulesAction } from "@/app/actions";
+import { JobStatus } from "@/components/job-status";
+import { jobStatusFor } from "@/lib/jobs/queue";
 import { AdminAlerts } from "@/components/admin-alerts";
 import { AdminUsers } from "@/components/admin-users";
 import { AdminWebshops } from "@/components/admin-webshops";
@@ -75,6 +77,7 @@ export default async function AdminClientDetail({ params, searchParams }: Client
   });
 
   if (!tenant) notFound();
+  const job = await jobStatusFor(tenant.id);
 
   const [dashboardModules, hiddenCampaigns] = await Promise.all([getTenantDashboardModules(tenant.id), getPrismaClient().campaign.count({ where: { tenantId: tenant.id, included: false } })]);
   const campaigns = filterCampaigns(tenant.campaigns, scope.webshop);
@@ -99,14 +102,19 @@ export default async function AdminClientDetail({ params, searchParams }: Client
       {query.notice === "settings-saved" ? <p className="form-success" role="status">De statistiekweergaven voor deze klant zijn bijgewerkt.</p> : null}
       {query.notice === "login-link-sent" ? <p className="form-success" role="status">De klant heeft een e-mail ontvangen met een link om een wachtwoord in te stellen.</p> : null}
       {query.error === "login-link-failed" ? <p className="form-error" role="alert">De inloglink kon niet worden verstuurd. Controleer de Resend-koppeling en probeer het opnieuw.</p> : null}
+      {query.notice === "job-started" ? <p className="form-success" role="status">Alles wordt op de achtergrond bijgewerkt; de voortgang staat hieronder. Je kunt deze pagina gewoon verlaten.</p> : null}
+      {query.notice === "job-running" ? <p className="form-success" role="status">Er loopt al een taak voor deze klant; de voortgang staat hieronder.</p> : null}
       {query.error === "settings-save-failed" ? <p className="form-error" role="alert">De statistiekinstellingen zijn niet opgeslagen. Probeer het opnieuw.</p> : null}
       <div className="detail-toolbar">
         <Link className="button button-secondary" href="/dashboard/admin/clients"><ArrowLeft size={16} /> Alle klanten</Link>
         <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/inzicht`}><Gem size={16} /> Inzicht</Link>
         <Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}/voorspellen`}><BrainCircuit size={16} /> Voorspellen en advies</Link>
+        <form action={runTenantJobAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-secondary" type="submit"><RefreshCw size={16} /> Alles bijwerken</button></form>
         {tenant.users[0] ? <form action={sendLoginLinkAction}><input name="tenantId" type="hidden" value={tenant.id} /><input name="returnTo" type="hidden" value={`/dashboard/admin/clients/${tenant.id}`} /><button className="button button-secondary" type="submit"><KeyRound size={16} /> Inloglink mailen</button></form> : null}
         {tenant.users[0] && tenant.status === "active" ? <form action={impersonateCustomerAction}><input name="tenantId" type="hidden" value={tenant.id} /><button className="button button-primary" type="submit"><Eye size={16} /> Bekijken als klant</button></form> : null}
       </div>
+
+      <JobStatus job={job} />
 
       {webshops.length ? <nav className="segmented-control admin-scope" aria-label="Gegevens tonen voor">
         {scopes.map((option) => <Link aria-current={option.id === scope.id ? "page" : undefined} href={option.id === "all" ? `/dashboard/admin/clients/${tenant.id}` : `/dashboard/admin/clients/${tenant.id}?webshop=${option.id}`} key={option.id} scroll={false}>{option.name}</Link>)}

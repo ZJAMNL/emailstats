@@ -4,9 +4,10 @@ import { refresh } from "next/cache";
 import { CopernicaError, getTenantCopernica } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { listCollectionFields, listCollections, sampleOrders } from "@/lib/rfm/copernica-orders";
-import { calculateRfm, runRfm, type RfmModelSettings, type RfmRunSummary } from "@/lib/rfm/run";
+import { calculateRfm, type RfmModelSettings, type RfmRunSummary } from "@/lib/rfm/run";
 import { adminForTenant } from "@/lib/admin-access";
-import { ensureRfmFields, writeRfmToCopernica, type WriteBackSummary } from "@/lib/rfm/writeback";
+import { ensureRfmFields } from "@/lib/rfm/writeback";
+import { startJob, type StartResult } from "@/lib/jobs/start";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -39,7 +40,7 @@ export async function rfmPreviewAction(tenantId: string, input: RfmModelSettings
   const settings = validateSettings(input);
   if (!settings) return { ok: false, error: "Kies een collectie, een datumveld en een bedragveld." };
   try {
-    const { summary } = await calculateRfm(tenantId, settings);
+    const { summary } = await calculateRfm(tenantId, settings, { preview: true });
     return { ok: true, data: summary };
   } catch {
     return { ok: false, error: "De proefberekening is mislukt. Controleer de gekozen velden en de Copernica-koppeling." };
@@ -52,27 +53,20 @@ export async function rfmSaveAction(tenantId: string, input: RfmModelSettings & 
   if (!settings) return { ok: false, error: "Kies een collectie, een datumveld en een bedragveld." };
   const data = { ...settings, collectionName: String(input.collectionName ?? "").slice(0, 200), customerVisible: input.customerVisible === true, enabled: true };
 
-  try {
-    await getPrismaClient().rfmConfig.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
-    await runRfm(tenantId);
-  } catch {
-    refresh();
-    return { ok: false, error: "Het model is opgeslagen, maar de berekening is mislukt. Probeer ‘Nu berekenen’ opnieuw." };
-  }
+  const admin = await adminForTenant(tenantId);
+  await getPrismaClient().rfmConfig.upsert({ where: { tenantId }, create: { tenantId, ...data }, update: data });
+  // Calculating a large database takes minutes: it runs as a background job.
+  await startJob(tenantId, ["ingest", "rfm", "rfm-write"], admin?.name ?? "beheerder");
   refresh();
   return { ok: true, data: null };
 }
 
 export async function rfmRunAction(tenantId: string): Promise<Result<null>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  try {
-    await runRfm(tenantId);
-  } catch {
-    refresh();
-    return { ok: false, error: "De berekening is mislukt. Controleer de Copernica-koppeling en de gekozen velden." };
-  }
+  const admin = await adminForTenant(tenantId);
+  if (!admin) return noAccess;
+  const started = await startJob(tenantId, ["ingest", "rfm", "rfm-write"], admin.name);
   refresh();
-  return { ok: true, data: null };
+  return started.queued ? { ok: true, data: null } : { ok: false, error: started.message };
 }
 
 
@@ -131,14 +125,10 @@ export async function rfmEnsureFieldsAction(tenantId: string): Promise<Result<{ 
   }
 }
 
-export async function rfmWriteBackNowAction(tenantId: string): Promise<Result<WriteBackSummary>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  try {
-    // Leave headroom under the page's 300-second limit; the rest follows on the next run.
-    const summary = await writeRfmToCopernica(tenantId, Date.now() + 240_000);
-    refresh();
-    return summary.error ? { ok: false, error: summary.error } : { ok: true, data: summary };
-  } catch {
-    return { ok: false, error: "Terugschrijven is mislukt. Controleer de Copernica-koppeling." };
-  }
+export async function rfmWriteBackNowAction(tenantId: string): Promise<Result<StartResult>> {
+  const admin = await adminForTenant(tenantId);
+  if (!admin) return noAccess;
+  const started = await startJob(tenantId, ["rfm-write"], admin.name);
+  refresh();
+  return started.queued ? { ok: true, data: started } : { ok: false, error: started.message };
 }

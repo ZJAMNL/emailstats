@@ -2,6 +2,8 @@ import { getTenantCopernica } from "../copernica";
 import { getPrismaClient } from "../prisma";
 import { fetchAllOrders, fetchSubprofiles } from "../rfm/copernica-orders";
 import { assemblePredictData, WEB_LOOKBACK_DAYS, type DataQuality, type PredictMapping } from "./data";
+import { cacheReady, loadCachedEventRows, loadCachedLineRows, loadCachedOrders } from "../data-cache/load";
+import { cacheSources, type CacheSource, type EventSource, type LineSource, type OrderSource } from "../data-cache/sources";
 import type { PredictData } from "./features";
 import { buildPredictions, type PredictionReport } from "./model";
 import { forecastScopes, profilesInScope, type ForecastScope } from "./orders-plan";
@@ -44,12 +46,26 @@ export async function calculatePredictions(tenantId: string, now = new Date()): 
   if (!connected) throw new Error("Deze klant heeft nog geen Copernica-koppeling.");
 
   const mapping = mappingFromConfig(config);
+  const webSince = new Date(now.getTime() - WEB_LOOKBACK_DAYS * dayMs);
+  // From the data cache when it holds this exact mapping (the nightly job keeps it up to date), else from Copernica.
+  const sources = await cacheSources(tenantId);
+  const ready = async <T extends CacheSource>(source: T | undefined) => (source && (await cacheReady(tenantId, source)) ? source : null);
+  const [orderSource, lineSource, eventSource] = await Promise.all([
+    ready(sources.find((source): source is OrderSource => source.kind === "orders")),
+    ready(sources.find((source): source is LineSource => source.kind === "lines")),
+    ready(sources.find((source): source is EventSource => source.kind === "events")),
+  ]);
+  const [cachedOrders, cachedLines, cachedEvents] = await Promise.all([
+    orderSource ? loadCachedOrders(tenantId) : null,
+    lineSource ? loadCachedLineRows(tenantId, lineSource) : null,
+    eventSource ? loadCachedEventRows(tenantId, eventSource, webSince) : null,
+  ]);
   const [orders, lines, events] = await Promise.all([
-    fetchAllOrders(connected.jwt, rfm.collectionId, { dateField: rfm.dateField, amountField: rfm.amountField, statusField: rfm.statusField, keyField: config.orderKeyField || null }),
-    fetchSubprofiles(connected.jwt, config.lineCollectionId, { maxRows: MAX_LINES }),
-    config.webCollectionId && config.webDateField
-      ? fetchSubprofiles(connected.jwt, config.webCollectionId, { since: { field: config.webDateField, date: new Date(now.getTime() - WEB_LOOKBACK_DAYS * dayMs) }, maxRows: MAX_EVENTS })
-      : Promise.resolve({ rows: [], total: 0, truncated: false }),
+    cachedOrders ? { orders: cachedOrders } : fetchAllOrders(connected.jwt, rfm.collectionId, { dateField: rfm.dateField, amountField: rfm.amountField, statusField: rfm.statusField, keyField: config.orderKeyField || null }),
+    cachedLines ? { rows: cachedLines, total: cachedLines.length, truncated: false } : fetchSubprofiles(connected.jwt, config.lineCollectionId, { maxRows: MAX_LINES }),
+    !(config.webCollectionId && config.webDateField) ? { rows: [], total: 0, truncated: false }
+      : cachedEvents ? { rows: cachedEvents, total: cachedEvents.length, truncated: false }
+      : fetchSubprofiles(connected.jwt, config.webCollectionId, { since: { field: config.webDateField, date: webSince }, maxRows: MAX_EVENTS }),
   ]);
 
   const { data, quality } = assemblePredictData(orders.orders, lines.rows, events.rows, mapping, { now, excludedStatuses: rfm.excludedStatuses });

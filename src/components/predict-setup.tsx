@@ -157,7 +157,7 @@ export function PredictSetup({ tenantId, orderCollection, initial }: { tenantId:
       <label className="rfm-check predict-consent"><input checked={consent} onChange={(event) => setConsent(event.target.checked)} type="checkbox" /> De klant heeft een grondslag (zoals toestemming) om aankopen en websitegedrag te gebruiken voor profilering en informeert klanten daarover in de privacyverklaring.</label>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className="rfm-row">
-        <button className="button button-primary" disabled={!ready || busy !== null} onClick={() => run("save", () => savePredictionConfigAction(tenantId, settings), () => undefined)} type="button"><BrainCircuit size={15} /> {busy === "save" ? "Opslaan en berekenen… (kan enkele minuten duren)" : "Opslaan en berekenen"}</button>
+        <button className="button button-primary" disabled={!ready || busy !== null} onClick={() => run("save", () => savePredictionConfigAction(tenantId, settings), () => undefined)} type="button"><BrainCircuit size={15} /> {busy === "save" ? "Opslaan…" : "Opslaan en berekenen"}</button>
       </div>
     </div>
   );

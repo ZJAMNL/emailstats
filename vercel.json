@@ -13,24 +13,36 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/rfm",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/predictions",
-      "schedule": "30 5 * * *"
-    },
-    {
-      "path": "/api/cron/forecast",
-      "schedule": "45 5 * * *"
-    },
-    {
       "path": "/api/cron/alerts",
       "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/security",
       "schedule": "0 7 * * 1"
+    },
+    {
+      "path": "/api/jobs/run?backstop=1",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/jobs/run?backstop=2",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/jobs/run?backstop=3",
+      "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/jobs/run?backstop=4",
+      "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/api/jobs/run?backstop=5",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/jobs/run?backstop=6",
+      "schedule": "30 13 * * *"
     }
   ]
 }

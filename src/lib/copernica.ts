@@ -199,15 +199,18 @@ export async function getTenantCopernica(tenantId: string) {
   };
 }
 
+/**
+ * Stores the Copernica views as selections, writing only what is new or renamed: databases with over a
+ * thousand selections otherwise spent minutes rewriting the same rows every night.
+ */
 async function storeSelections(tenantId: string, views: CopernicaView[]) {
   const prisma = getPrismaClient();
-  const known = new Set((await prisma.copernicaSelection.findMany({ where: { tenantId }, select: { copernicaId: true } })).map((selection) => selection.copernicaId));
-  await mapInBatches(views, 8, (view) => prisma.copernicaSelection.upsert({
-    where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } },
-    create: { tenantId, copernicaId: String(view.ID), name: view.name },
-    update: { name: view.name },
-  }));
-  return { total: views.length, added: views.filter((view) => !known.has(String(view.ID))).length };
+  const known = new Map((await prisma.copernicaSelection.findMany({ where: { tenantId }, select: { copernicaId: true, name: true } })).map((selection) => [selection.copernicaId, selection.name]));
+  const added = views.filter((view) => !known.has(String(view.ID)));
+  const renamed = views.filter((view) => known.has(String(view.ID)) && known.get(String(view.ID)) !== view.name);
+  if (added.length) await prisma.copernicaSelection.createMany({ data: added.map((view) => ({ tenantId, copernicaId: String(view.ID), name: view.name })), skipDuplicates: true });
+  await mapInBatches(renamed, 8, (view) => prisma.copernicaSelection.update({ where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } }, data: { name: view.name } }));
+  return { total: views.length, added: added.length };
 }
 
 /** Fetches the Copernica views again, so new selections can be chosen without a full sync. */

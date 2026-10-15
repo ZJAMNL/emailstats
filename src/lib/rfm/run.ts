@@ -1,5 +1,7 @@
 import { getTenantCopernica } from "../copernica";
 import { getPrismaClient } from "../prisma";
+import { cacheReady, loadCachedOrders } from "../data-cache/load";
+import { cacheSources } from "../data-cache/sources";
 import { countDatabaseProfiles, fetchAllOrders } from "./copernica-orders";
 import { buildCohorts, type CohortRow } from "./cohort";
 import { predictClv, type ClvSummary } from "./predict";
@@ -31,18 +33,32 @@ export type RfmRunSummary = {
   /** Absent in summaries stored before predictive CLV existed. */
   clv?: ClvSummary;
   cohorts?: CohortRow[];
+  /** Set when a preview used only the newest orders of a large database. */
+  sample?: { used: number; total: number };
 };
 
-/** Fetches orders from Copernica and scores them. Nothing is stored. */
-export async function calculateRfm(tenantId: string, settings: RfmModelSettings) {
+/** At most this many orders are fetched straight from Copernica for a preview; the cache has them all. */
+export const PREVIEW_MAX_ORDERS = 100_000;
+
+/** The cached orders when the cache holds exactly these settings, else null (fetch from Copernica). */
+async function cachedOrdersFor(tenantId: string, settings: RfmModelSettings) {
+  const source = (await cacheSources(tenantId)).find((item) => item.kind === "orders");
+  if (!source || source.kind !== "orders") return null;
+  const same = source.collectionId === settings.collectionId && source.dateField === settings.dateField && source.amountField === settings.amountField && (source.statusField ?? null) === (settings.statusField ?? null);
+  return same && (await cacheReady(tenantId, source)) ? loadCachedOrders(tenantId) : null;
+}
+
+/**
+ * Scores the orders: from the cache when it is filled for these settings, else straight from Copernica
+ * (a preview of a large database then uses the newest orders only). Nothing is stored.
+ */
+export async function calculateRfm(tenantId: string, settings: RfmModelSettings, { preview = false }: { preview?: boolean } = {}) {
   const started = Date.now();
   const connected = await getTenantCopernica(tenantId);
   if (!connected) throw new Error("Deze klant heeft nog geen Copernica-koppeling.");
 
-  const [fetched, totalProfiles] = await Promise.all([
-    fetchAllOrders(connected.jwt, settings.collectionId, settings),
-    countDatabaseProfiles(connected.jwt, connected.connection.databaseId),
-  ]);
+  const [cached, totalProfiles] = await Promise.all([cachedOrdersFor(tenantId, settings), countDatabaseProfiles(connected.jwt, connected.connection.databaseId)]);
+  const fetched = cached ? { orders: cached } : await fetchAllOrders(connected.jwt, settings.collectionId, settings, preview ? { maxRows: PREVIEW_MAX_ORDERS } : {});
   const now = new Date();
   const { customers, quality } = scoreRfm(fetched.orders, { now, windowMonths: settings.windowMonths, frequencyThresholds: settings.frequencyThresholds, excludedStatuses: settings.excludedStatuses });
   const value = summarizeRfm(customers, { prospects: Math.max(0, totalProfiles - customers.length), windowMonths: settings.windowMonths, marginPercent: settings.marginPercent });
@@ -58,7 +74,8 @@ export async function calculateRfm(tenantId: string, settings: RfmModelSettings)
   });
   const cohorts = buildCohorts(usable, now);
 
-  const summary: RfmRunSummary = { ranAt: now.toISOString(), durationMs: Date.now() - started, ordersFetched: fetched.orders.length, totalProfiles, quality, value, grid, settings, clv, cohorts };
+  const sample = "total" in fetched && fetched.total > fetched.orders.length ? { used: fetched.orders.length, total: fetched.total } : undefined;
+  const summary: RfmRunSummary = { ranAt: now.toISOString(), durationMs: Date.now() - started, ordersFetched: fetched.orders.length, totalProfiles, quality, value, grid, settings, clv, cohorts, ...(sample ? { sample } : {}) };
   return { customers, summary, predictions: perProfile };
 }
 

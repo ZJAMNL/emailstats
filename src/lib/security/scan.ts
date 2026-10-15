@@ -11,7 +11,7 @@ const day = 86_400_000;
 /** Sign-in events are kept half a year: long enough to look back on an incident. */
 const EVENT_RETENTION_DAYS = 180;
 const protectedPages = ["/dashboard/admin", "/dashboard/admin/beheerders", "/dashboard/customer", "/dashboard/customer/data"];
-const cronRoutes = ["/api/cron/copernica", "/api/cron/rfm", "/api/cron/predictions", "/api/cron/forecast", "/api/cron/alerts", "/api/cron/security"];
+const cronRoutes = ["/api/cron/copernica", "/api/cron/alerts", "/api/cron/security", "/api/jobs/run"];
 
 async function probe(baseUrl: string, path: string, expected: AccessProbe["expected"]): Promise<AccessProbe> {
   try {

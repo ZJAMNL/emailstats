@@ -23,7 +23,7 @@ export function RfmControls({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="rfm-controls">
-      <button className="button button-secondary" disabled={busy !== null} onClick={() => run("run", () => rfmRunAction(tenantId))} type="button"><RefreshCw size={15} /> {busy === "run" ? "Berekenen…" : "Nu berekenen"}</button>
+      <button className="button button-secondary" disabled={busy !== null} onClick={() => run("run", () => rfmRunAction(tenantId))} type="button"><RefreshCw size={15} /> {busy === "run" ? "Starten…" : "Nu berekenen"}</button>
       {confirmDisable
         ? <span className="rfm-confirm">Scores per profiel worden verwijderd. <button className="button button-danger" disabled={busy !== null} onClick={() => run("disable", () => rfmDisableAction(tenantId))} type="button">Ja, uitzetten</button><button className="button button-secondary" onClick={() => setConfirmDisable(false)} type="button">Annuleren</button></span>
         : <button className="button button-secondary" disabled={busy !== null} onClick={() => setConfirmDisable(true)} type="button"><Power size={15} /> Model uitzetten</button>}

@@ -6,7 +6,7 @@ import { readCostSettings, type CostSettings, type TenantUsage } from "./model";
 const dayMs = 24 * 60 * 60 * 1000;
 const SETTINGS_KEY = "cost-settings";
 /** Tables that grow per customer, with how their rows belong to a customer. */
-const tenantTables = ["RfmProfileScore", "ProfilePrediction", "PredictionOutcome", "Campaign", "CopernicaSelection", "AlertEvent", "InsightWriteBack", "RfmWriteBack", "RfmSegmentSnapshot"] as const;
+const tenantTables = ["RfmProfileScore", "ProfilePrediction", "PredictionOutcome", "Campaign", "CopernicaSelection", "AlertEvent", "InsightWriteBack", "RfmWriteBack", "RfmSegmentSnapshot", "CachedOrder", "CachedLine", "CachedEvent"] as const;
 
 export async function loadCostSettings(): Promise<CostSettings> {
   const row = await getPrismaClient().platformSetting.findUnique({ where: { key: SETTINGS_KEY } });
@@ -38,6 +38,9 @@ async function storagePerTenant() {
     UNION ALL SELECT "tenantId", 'InsightWriteBack', count(*) FROM "InsightWriteBack" GROUP BY 1
     UNION ALL SELECT "tenantId", 'RfmWriteBack', count(*) FROM "RfmWriteBack" GROUP BY 1
     UNION ALL SELECT "tenantId", 'RfmSegmentSnapshot', count(*) FROM "RfmSegmentSnapshot" GROUP BY 1
+    UNION ALL SELECT "tenantId", 'CachedOrder', count(*) FROM "CachedOrder" GROUP BY 1
+    UNION ALL SELECT "tenantId", 'CachedLine', count(*) FROM "CachedLine" GROUP BY 1
+    UNION ALL SELECT "tenantId", 'CachedEvent', count(*) FROM "CachedEvent" GROUP BY 1
     UNION ALL SELECT c."tenantId", 'SelectionSnapshot', count(*) FROM "SelectionSnapshot" s JOIN "CopernicaSelection" c ON c.id = s."selectionId" GROUP BY 1`;
   const bytes = new Map<string, number>();
   const rows = new Map<string, Map<string, number>>();

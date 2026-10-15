@@ -30,7 +30,7 @@ export function PredictRunControls({ tenantId }: { tenantId: string }) {
   const [confirm, setConfirm] = useState(false);
   return (
     <div className="rfm-controls">
-      <button className="button button-secondary" disabled={busy !== null} onClick={() => run("run", () => runPredictionsAction(tenantId), () => "Opnieuw berekend.")} type="button"><RefreshCw size={15} /> {busy === "run" ? "Berekenen…" : "Nu berekenen"}</button>
+      <button className="button button-secondary" disabled={busy !== null} onClick={() => run("run", () => runPredictionsAction(tenantId), (data) => data.message)} type="button"><RefreshCw size={15} /> {busy === "run" ? "Starten…" : "Nu berekenen"}</button>
       {confirm
         ? <><button className="button button-danger" disabled={busy !== null} onClick={() => run("off", () => disablePredictionsAction(tenantId), () => "Voorspellingen staan uit; de scores per profiel zijn verwijderd.")} type="button">Ja, uitzetten</button><button className="button button-secondary" onClick={() => setConfirm(false)} type="button">Annuleren</button></>
         : <button className="button button-secondary" onClick={() => setConfirm(true)} type="button"><Power size={15} /> Uitzetten</button>}

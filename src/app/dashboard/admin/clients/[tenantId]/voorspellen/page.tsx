@@ -16,6 +16,8 @@ import type { ForecastWriteSummary } from "@/lib/predict/orders-writer";
 import { loadOutcomeReport } from "@/lib/predict/outcomes";
 import { getPrismaClient } from "@/lib/prisma";
 import { readTenantDashboardModules } from "@/lib/tenant-settings";
+import { JobStatus } from "@/components/job-status";
+import { jobStatusFor } from "@/lib/jobs/queue";
 
 export const dynamic = "force-dynamic";
 // Calculations fetch every order line and web event from Copernica and can take a while.
@@ -45,6 +47,7 @@ export default async function AdminClientForecast({ params, searchParams }: { pa
   return (
     <DashboardShell role="admin" title={`Voorspellen en advies · ${tenant.name}`} subtitle="Verwachte omzet en productgroepen, wie wanneer gaat bestellen en wat je ermee kunt.">
       <div className="detail-toolbar"><Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}`}><ArrowLeft size={16} /> Terug naar {tenant.name}</Link>{config?.enabled ? <PredictRunControls tenantId={tenant.id} /> : null}</div>
+      <JobStatus job={await jobStatusFor(tenant.id)} />
       {!tenant.copernica ? <section className="panel table-panel"><p className="empty-state">Koppel eerst Copernica voor deze klant.</p></section>
         : !tenant.rfmConfig ? <section className="panel table-panel"><p className="empty-state">Stel eerst het RFM-model in onder <Link href={`/dashboard/admin/clients/${tenant.id}/inzicht`}>Inzicht</Link>: daar staat de koppeling met de orders, waar de voorspellingen op voortbouwen.</p></section> : null}
       {config?.enabled && config.lastRunStatus && config.lastRunStatus !== "ok" ? <p className="form-error" role="alert">De laatste berekening ({config.lastRunAt?.toLocaleString("nl-NL")}) is mislukt: {config.lastRunStatus}</p> : null}

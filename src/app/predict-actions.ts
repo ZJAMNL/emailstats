@@ -4,9 +4,9 @@ import { refresh } from "next/cache";
 import { adminForTenant } from "@/lib/admin-access";
 import { CopernicaError } from "@/lib/copernica";
 import { forecastScopes } from "@/lib/predict/orders-plan";
-import { createForecastCollection, writeForecastOrders, type ForecastWriteSummary } from "@/lib/predict/orders-writer";
+import { createForecastCollection } from "@/lib/predict/orders-writer";
 import { getPrismaClient } from "@/lib/prisma";
-import { runPredictions } from "@/lib/predict/run";
+import { startJob, type StartResult } from "@/lib/jobs/start";
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -52,7 +52,7 @@ function validate(input: PredictionSetupInput) {
 }
 
 /** Saves the mapping and runs the models straight away, so the report is there when the page reloads. */
-export async function savePredictionConfigAction(tenantId: string, input: PredictionSetupInput): Promise<Result<null>> {
+export async function savePredictionConfigAction(tenantId: string, input: PredictionSetupInput): Promise<Result<StartResult>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
   const config = validate(input);
   if (!config) return { ok: false, error: "Kies de orderregels-collectie met order- en productveld, en bij webtracking ook het datumveld." };
@@ -62,20 +62,17 @@ export async function savePredictionConfigAction(tenantId: string, input: Predic
   return runAction(tenantId);
 }
 
-export async function runPredictionsAction(tenantId: string): Promise<Result<null>> {
+export async function runPredictionsAction(tenantId: string): Promise<Result<StartResult>> {
   if (!(await adminForTenant(tenantId))) return noAccess;
   return runAction(tenantId);
 }
 
-async function runAction(tenantId: string): Promise<Result<null>> {
-  try {
-    await runPredictions(tenantId);
-  } catch (error) {
-    refresh();
-    return { ok: false, error: error instanceof Error && error.message ? `De berekening is mislukt: ${error.message}` : "De berekening is mislukt. Controleer de koppeling en de gekozen velden." };
-  }
+/** Fetching order lines and web events and training the models takes minutes: a background job. */
+async function runAction(tenantId: string): Promise<Result<StartResult>> {
+  const admin = await adminForTenant(tenantId);
+  const started = await startJob(tenantId, ["ingest", "predictions", "forecast-write"], admin?.name ?? "beheerder");
   refresh();
-  return { ok: true, data: null };
+  return started.queued ? { ok: true, data: started } : { ok: false, error: started.message };
 }
 
 export async function disablePredictionsAction(tenantId: string): Promise<Result<null>> {
@@ -138,14 +135,10 @@ export async function saveForecastMappingAction(tenantId: string, input: Forecas
   return { ok: true, data: null };
 }
 
-export async function writeForecastNowAction(tenantId: string): Promise<Result<ForecastWriteSummary>> {
-  if (!(await adminForTenant(tenantId))) return noAccess;
-  try {
-    // Leave headroom under the page's 300-second limit; the rest follows on the next run.
-    const summary = await writeForecastOrders(tenantId, Date.now() + 240_000);
-    refresh();
-    return summary.error ? { ok: false, error: summary.error } : { ok: true, data: summary };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error && error.message ? error.message : "Wegschrijven is mislukt. Controleer de Copernica-koppeling." };
-  }
+export async function writeForecastNowAction(tenantId: string): Promise<Result<StartResult>> {
+  const admin = await adminForTenant(tenantId);
+  if (!admin) return noAccess;
+  const started = await startJob(tenantId, ["forecast-write"], admin.name);
+  refresh();
+  return started.queued ? { ok: true, data: started } : { ok: false, error: started.message };
 }

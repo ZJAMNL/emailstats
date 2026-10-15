@@ -10,6 +10,8 @@ import { RefreshSelectionsButton } from "@/components/refresh-selections-button"
 import { SelectionPicker } from "@/components/selection-picker";
 import { readSelectionGroups, readSelectionWidgetSettings, readTenantDashboardModules, type SelectionGroup } from "@/lib/tenant-settings";
 import { SelectionGroupsEditor } from "@/components/selection-groups-editor";
+import { JobStatus } from "@/components/job-status";
+import { jobStatusFor } from "@/lib/jobs/queue";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,8 @@ const colors = ["#237a63", "#b05b3b", "#356ba5", "#94702c", "#875891", "#4c7878"
 const noticeText: Record<string, string> = {
   connected: "De Copernica-koppeling is getest en opgeslagen.",
   "selections-saved": "Je selectie-keuze is opgeslagen.",
-  synced: "De campagnegegevens en geselecteerde profielaantallen zijn gesynchroniseerd.",
+  "sync-started": "De synchronisatie loopt op de achtergrond; de voortgang staat hieronder. Je kunt deze pagina gewoon verlaten.",
+  "sync-running": "Er loopt al een synchronisatie voor je account; de voortgang staat hieronder.",
 };
 
 const errorText: Record<string, string> = {
@@ -77,6 +80,7 @@ export default async function CustomerData({ searchParams }: DataPageProps) {
       <CustomerDataTabs current="copernica" showCampaigns={campaignStatsEnabled} />
       {params.notice && noticeText[params.notice] ? <p className="form-success" role="status">{noticeText[params.notice]}</p> : null}
       {params.error && errorText[params.error] ? <p className="form-error" role="alert">{errorText[params.error]}</p> : null}
+      {connection ? <JobStatus job={await jobStatusFor(session.tenantId)} /> : null}
       {databaseUnavailable ? <p className="form-error" role="status">De databron is nog niet geactiveerd. De beheerder moet eerst PostgreSQL configureren en migreren.</p> : null}
 
       <section className="data-overview">

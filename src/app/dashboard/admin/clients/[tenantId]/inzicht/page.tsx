@@ -14,6 +14,8 @@ import { loadRfmSnapshots } from "@/lib/rfm/history";
 import { loadMigrationMatrix, settingsFromConfig, type RfmRunSummary } from "@/lib/rfm/run";
 import { listMissingRfmFields, type WriteBackSummary } from "@/lib/rfm/writeback";
 import { readTenantDashboardModules } from "@/lib/tenant-settings";
+import { JobStatus } from "@/components/job-status";
+import { jobStatusFor } from "@/lib/jobs/queue";
 
 export const dynamic = "force-dynamic";
 // Calculations fetch every order from Copernica and can take a while for large databases.
@@ -35,6 +37,7 @@ export default async function AdminClientInsight({ params }: { params: Promise<{
   return (
     <DashboardShell role="admin" title={`Inzicht · ${tenant.name}`} subtitle="Wie zijn de klanten, wat zijn ze waard en hoe ontwikkelen ze zich? Op basis van de orders in Copernica.">
       <div className="detail-toolbar"><Link className="button button-secondary" href={`/dashboard/admin/clients/${tenant.id}`}><ArrowLeft size={16} /> Terug naar {tenant.name}</Link>{config?.enabled ? <RfmControls tenantId={tenant.id} /> : null}</div>
+      <JobStatus job={await jobStatusFor(tenant.id)} />
       {!tenant.copernica ? <section className="panel table-panel"><p className="empty-state">Koppel eerst Copernica voor deze klant. Daarna kun je het RFM-model instellen.</p></section> : null}
       {config?.enabled && config.lastRunStatus && config.lastRunStatus !== "ok" ? <p className="form-error" role="alert">De laatste berekening ({config.lastRunAt?.toLocaleString("nl-NL")}) is mislukt: {config.lastRunStatus}</p> : null}
 
