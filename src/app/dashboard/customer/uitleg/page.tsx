@@ -92,7 +92,7 @@ async function loadData(tenantId: string, webshop: WebshopDefinition | null) {
   const prisma = getPrismaClient();
   const [tenant, selections, enabledSelections, firstSnapshot, campaignStats] = await Promise.all([
     prisma.tenant.findUnique({ where: { id: tenantId }, select: { settings: true, copernica: { select: { databaseId: true, lastSyncedAt: true } }, rfmConfig: true } }),
-    prisma.copernicaSelection.count({ where: { tenantId } }),
+    prisma.copernicaSelection.count({ where: { tenantId, removedAt: null } }),
     prisma.copernicaSelection.count({ where: { tenantId, enabled: true } }),
     prisma.selectionSnapshot.findFirst({ where: { scope: "all", selection: { tenantId, enabled: true } }, orderBy: { measuredAt: "asc" }, select: { measuredAt: true } }),
     prisma.campaign.findMany({ where: { tenantId, included: true }, select: { name: true, sentAt: true } }),

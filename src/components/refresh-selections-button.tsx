@@ -16,7 +16,13 @@ export function RefreshSelectionsButton() {
     startTransition(async () => {
       const result = await refreshSelectionsAction();
       if (!result.ok) setMessage({ tone: "error", text: result.error });
-      else setMessage({ tone: "success", text: result.added ? `${number.format(result.added)} ${result.added === 1 ? "nieuwe selectie" : "nieuwe selecties"} opgehaald.` : "Geen nieuwe selecties; de lijst is bijgewerkt." });
+      else {
+        const parts = [
+          result.added ? `${number.format(result.added)} ${result.added === 1 ? "nieuwe selectie" : "nieuwe selecties"} opgehaald` : "",
+          result.removed ? `${number.format(result.removed)} ${result.removed === 1 ? "selectie" : "selecties"} die niet meer in de gekoppelde database ${result.removed === 1 ? "staat" : "staan"} uit de lijst gehaald` : "",
+        ].filter(Boolean);
+        setMessage({ tone: "success", text: parts.length ? `${parts.join("; ")}.` : "Geen wijzigingen; de lijst is bijgewerkt." });
+      }
     });
   }
 

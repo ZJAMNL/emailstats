@@ -1,6 +1,6 @@
 import { getTenantCopernica, syncTenantCopernicaData } from "../copernica";
 import { measureJob } from "../costs/usage";
-import { ingestSlice, type IngestCursor } from "../data-cache/ingest";
+import { dropCache, ingestSlice, type IngestCursor } from "../data-cache/ingest";
 import { cacheSources } from "../data-cache/sources";
 import { writeForecastOrders } from "../predict/orders-writer";
 import { runPredictions } from "../predict/run";
@@ -44,15 +44,18 @@ export async function runStep(step: JobStep, context: StepContext): Promise<Step
     case "ingest": {
       const sources = await cacheSources(tenantId);
       if (!sources.length) return { done: true, progress: "Geen orderdata gekoppeld" };
-      // A full database stops writes for every customer: then the models fetch from Copernica directly.
-      const sizeMb = await databaseSizeMb();
-      if (sizeMb > CACHE_LIMIT_MB) return { done: true, progress: `Cache overgeslagen: de database is ${Math.round(sizeMb)} MB (grens ${CACHE_LIMIT_MB} MB); de berekening haalt de gegevens rechtstreeks uit Copernica` };
+      // Above the size limit caches that never finished are removed: they only take space. New rows are
+      // still added (little data, and the cache must stay current); full refreshes stop (see ingestSlice).
+      if ((await databaseSizeMb()) > CACHE_LIMIT_MB && !context.cursor) {
+        const finished = new Set((await prisma.dataCache.findMany({ where: { tenantId, fullRefreshAt: { not: null } }, select: { kind: true } })).map((state) => state.kind));
+        for (const kind of ["orders", "lines", "events"] as const) if (!finished.has(kind)) await dropCache(tenantId, kind);
+      }
       const connected = await getTenantCopernica(tenantId);
       if (!connected) return { done: true, progress: "Geen Copernica-koppeling" };
       const state = (context.cursor ?? { index: 0, inner: null }) as { index: number; inner: IngestCursor | null };
       let progress = "";
       for (let index = state.index; index < sources.length; index++) {
-        const result = await measureJob(tenantId, "ingest", () => ingestSlice(tenantId, sources[index], connected.jwt, index === state.index ? state.inner : null, deadline));
+        const result = await measureJob(tenantId, "ingest", () => ingestSlice(tenantId, sources[index], connected.jwt, index === state.index ? state.inner : null, deadline, async () => (await databaseSizeMb()) > CACHE_LIMIT_MB));
         progress = result.progress;
         if (!result.done) return { done: false, cursor: { index, inner: result.cursor }, progress };
         if (Date.now() > deadline && index < sources.length - 1) return { done: false, cursor: { index: index + 1, inner: null }, progress };

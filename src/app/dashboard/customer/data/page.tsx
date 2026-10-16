@@ -137,7 +137,7 @@ function loadConnection(tenantId: string) {
 
 function loadSelections(tenantId: string) {
   return getPrismaClient().copernicaSelection.findMany({
-    where: { tenantId },
+    where: { tenantId, removedAt: null },
     select: { id: true, copernicaId: true, name: true, enabled: true },
     orderBy: { name: "asc" },
   });

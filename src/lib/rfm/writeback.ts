@@ -67,11 +67,13 @@ export async function writeRfmToCopernica(tenantId: string, deadline: number): P
       }
     });
     const writtenAt = new Date();
-    await prisma.$transaction(done.map((item) => prisma.rfmWriteBack.upsert({
-      where: { tenantId_copernicaProfileId: { tenantId, copernicaProfileId: item.profileId } },
-      create: { tenantId, copernicaProfileId: item.profileId, hash: item.hash, writtenAt },
-      update: { hash: item.hash, writtenAt },
-    })));
+    // One statement per batch: hundreds of separate upserts in a transaction ran past its 5-second limit.
+    if (done.length) {
+      await prisma.$executeRaw`
+        INSERT INTO "RfmWriteBack" ("tenantId", "copernicaProfileId", "hash", "writtenAt")
+        SELECT ${tenantId}, u.profile, u.hash, ${writtenAt}::timestamp(3) FROM unnest(${done.map((item) => item.profileId)}::text[], ${done.map((item) => item.hash)}::text[]) AS u(profile, hash)
+        ON CONFLICT ("tenantId", "copernicaProfileId") DO UPDATE SET "hash" = EXCLUDED."hash", "writtenAt" = EXCLUDED."writtenAt"`;
+    }
     summary.remaining -= batch.length;
     if (forbidden) {
       summary.error = "Copernica weigert het schrijven: het API-token heeft geen schrijfrechten.";

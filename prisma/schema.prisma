@@ -120,6 +120,9 @@ model CopernicaSelection {
   copernicaId String
   name        String
   enabled     Boolean             @default(false)
+  /// Set when the view no longer exists in the linked Copernica database (another database, or deleted):
+  /// hidden and no longer followed, but its history is kept in case it comes back.
+  removedAt   DateTime?
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
   tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)

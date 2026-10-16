@@ -6,7 +6,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { hash } from "bcryptjs";
 import { signInAction as signInDemoAccount } from "@/lib/demo-auth";
-import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, refreshTenantSelections } from "@/lib/copernica";
+import { decryptCopernicaToken, encryptCopernicaToken, listCopernicaViews, refreshTenantSelections, storeSelections } from "@/lib/copernica";
 import { getPrismaClient } from "@/lib/prisma";
 import { adminForTenant, requireAdmin, type AdminSession } from "@/lib/admin-access";
 import { createSession, requireRole, requireSession } from "@/lib/session";
@@ -330,11 +330,8 @@ export async function connectCopernicaAction(formData: FormData) {
       },
     });
 
-    await Promise.all(views.map((view) => prisma.copernicaSelection.upsert({
-      where: { tenantId_copernicaId: { tenantId: session.tenantId, copernicaId: String(view.ID) } },
-      create: { tenantId: session.tenantId, copernicaId: String(view.ID), name: view.name },
-      update: { name: view.name },
-    })));
+    // Also archives the selections of a previously linked database.
+    await storeSelections(session.tenantId, views);
   } catch {
     redirect("/dashboard/customer/data?error=connection-failed");
   }
@@ -359,7 +356,7 @@ export async function updateCopernicaSelectionsAction(formData: FormData) {
   redirect("/dashboard/customer/data?notice=selections-saved");
 }
 
-export async function refreshSelectionsAction(): Promise<{ ok: true; total: number; added: number } | { ok: false; error: string }> {
+export async function refreshSelectionsAction(): Promise<{ ok: true; total: number; added: number; removed: number } | { ok: false; error: string }> {
   const session = await requireRole("customer");
   if (!(await requireTenantManager(session))) return { ok: false, error: "Je hebt geen rechten om de selecties te beheren." };
   try {

@@ -94,8 +94,21 @@ function countRows(kind: CacheSource["kind"], tenantId: string) {
 const larger = (left: string, right: string) => (BigInt(left) >= BigInt(right) ? left : right);
 const maxOf = (rows: Subprofile[], current: string) => rows.reduce((max, row) => larger(max, String(row.ID)), current);
 
-/** One slice of filling the cache for one collection; call again with the returned cursor until done. */
-export async function ingestSlice(tenantId: string, source: CacheSource, jwt: string, cursor: IngestCursor | null, deadline: number, now = new Date()): Promise<IngestResult> {
+/** Removes a customer's cached rows of one kind and its state: the models then read from Copernica again. */
+export async function dropCache(tenantId: string, kind: CacheSource["kind"]) {
+  const prisma = getPrismaClient();
+  if (kind === "orders") await prisma.cachedOrder.deleteMany({ where: { tenantId } });
+  else if (kind === "lines") await prisma.cachedLine.deleteMany({ where: { tenantId } });
+  else await prisma.cachedEvent.deleteMany({ where: { tenantId } });
+  await prisma.dataCache.deleteMany({ where: { tenantId, kind } });
+}
+
+/**
+ * One slice of filling the cache for one collection; call again with the returned cursor until done.
+ * `tooLarge` is asked every few pages: when the database passes its limit the cache of this kind is
+ * removed altogether (a partial cache is useless and only takes space).
+ */
+export async function ingestSlice(tenantId: string, source: CacheSource, jwt: string, cursor: IngestCursor | null, deadline: number, tooLarge: () => Promise<boolean>, now = new Date()): Promise<IngestResult> {
   const prisma = getPrismaClient();
   const hash = mappingHash(source);
   const state = await prisma.dataCache.findUnique({ where: { tenantId_kind: { tenantId, kind: source.kind } } });
@@ -110,6 +123,10 @@ export async function ingestSlice(tenantId: string, source: CacheSource, jwt: st
   if (current.mode === "full") {
     // Oldest first: rows added during the refresh land at the end and are picked up as well.
     while (Date.now() < deadline) {
+      if (await tooLarge()) {
+        await dropCache(tenantId, source.kind);
+        return { done: true, cursor: null, progress: `${label}: cache gestopt en opgeruimd, de database is te groot; de berekening haalt de gegevens rechtstreeks uit Copernica` };
+      }
       const starts = Array.from({ length: PARALLEL }, (_, index) => current.start + index * PAGE).filter((start) => current.total === undefined || start < current.total);
       if (!starts.length) break;
       const pages = await mapInBatches(starts, PARALLEL, (start) => fetchPage(jwt, source, start, "asc", now));

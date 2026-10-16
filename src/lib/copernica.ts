@@ -201,16 +201,25 @@ export async function getTenantCopernica(tenantId: string) {
 
 /**
  * Stores the Copernica views as selections, writing only what is new or renamed: databases with over a
- * thousand selections otherwise spent minutes rewriting the same rows every night.
+ * thousand selections otherwise spent minutes rewriting the same rows every night. Selections whose view is
+ * no longer in this database (after linking another database, or deleted in Copernica) are archived: hidden
+ * and no longer followed, with their history kept in case they come back.
  */
-async function storeSelections(tenantId: string, views: CopernicaView[]) {
+export async function storeSelections(tenantId: string, views: CopernicaView[]) {
   const prisma = getPrismaClient();
   const known = new Map((await prisma.copernicaSelection.findMany({ where: { tenantId }, select: { copernicaId: true, name: true } })).map((selection) => [selection.copernicaId, selection.name]));
   const added = views.filter((view) => !known.has(String(view.ID)));
   const renamed = views.filter((view) => known.has(String(view.ID)) && known.get(String(view.ID)) !== view.name);
   if (added.length) await prisma.copernicaSelection.createMany({ data: added.map((view) => ({ tenantId, copernicaId: String(view.ID), name: view.name })), skipDuplicates: true });
   await mapInBatches(renamed, 8, (view) => prisma.copernicaSelection.update({ where: { tenantId_copernicaId: { tenantId, copernicaId: String(view.ID) } }, data: { name: view.name } }));
-  return { total: views.length, added: added.length };
+  let removed = 0;
+  // An empty answer is more likely a hiccup than a database without views: then nothing is archived.
+  if (views.length) {
+    const current = views.map((view) => String(view.ID));
+    removed = (await prisma.copernicaSelection.updateMany({ where: { tenantId, removedAt: null, copernicaId: { notIn: current } }, data: { removedAt: new Date(), enabled: false } })).count;
+    await prisma.copernicaSelection.updateMany({ where: { tenantId, removedAt: { not: null }, copernicaId: { in: current } }, data: { removedAt: null } });
+  }
+  return { total: views.length, added: added.length, removed };
 }
 
 /** Fetches the Copernica views again, so new selections can be chosen without a full sync. */
@@ -253,7 +262,13 @@ export async function syncTenantCopernicaData(
     ]);
     await mapInBatches(tasks, 8, async ({ selection, scope, webshop }) => {
       const path = `view/${encodeURIComponent(selection.copernicaId)}/profiles`;
-      const profileCount = webshop ? await countProfilesForWebshop(jwt, path, webshop) : await fetchCopernicaProfileCountWithJwt(jwt, selection.copernicaId);
+      let profileCount: number;
+      try {
+        profileCount = webshop ? await countProfilesForWebshop(jwt, path, webshop) : await fetchCopernicaProfileCountWithJwt(jwt, selection.copernicaId);
+      } catch {
+        // One selection Copernica cannot count (for instance just deleted) must not stop the others.
+        return;
+      }
       await prisma.selectionSnapshot.upsert({
         where: { selectionId_scope_measuredAt: { selectionId: selection.id, scope, measuredAt } },
         create: { selectionId: selection.id, scope, measuredAt, profileCount },

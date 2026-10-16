@@ -68,7 +68,7 @@ function parseDate(raw: string | undefined) {
 export async function previewSelectionHistory(tenantId: string, text: string, scope = "all"): Promise<HistoryPreview> {
   const parsed = parseHistoryCsv(text);
   const selections = await getPrismaClient().copernicaSelection.findMany({
-    where: { tenantId },
+    where: { tenantId, removedAt: null },
     select: { id: true, name: true, enabled: true },
     orderBy: { name: "asc" },
   });
